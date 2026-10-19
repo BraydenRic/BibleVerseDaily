@@ -1,0 +1,11 @@
+out/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Local files that aren't part of the bot (the original zip, samples, profile artwork)
+/daily-verse.zip
+/day-001.mp4
+/preview-all-40.jpg
+/brand/

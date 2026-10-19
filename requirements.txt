@@ -1,0 +1,4 @@
+# Exact versions, so a new release can't change rendering partway through the year.
+numpy==2.5.4
+pillow==13.0.0
+requests==2.34.2

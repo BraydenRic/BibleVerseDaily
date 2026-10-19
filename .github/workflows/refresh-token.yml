@@ -1,0 +1,28 @@
+name: Refresh Instagram tokens
+
+# Instagram long-lived tokens expire after 60 days unless refreshed.
+# Every Monday this swaps each account's token for a fresh one and saves it back as a secret
+# (GH_PAT is a fine-grained token limited to this repo with Secrets: read and write).
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Refresh and save
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_REPO: ${{ github.repository }}
+        run: python -m dailyverse refresh-tokens

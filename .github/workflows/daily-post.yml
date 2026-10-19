@@ -1,0 +1,99 @@
+name: Daily post
+
+on:
+  schedule:
+    # Every hour at :50. Each account posts only inside its own window around its post_time,
+    # in its own time zone (daylight saving included), and only once a day. So this single
+    # schedule works for any number of accounts in any time zones, and the hourly runs inside
+    # a window double as automatic retries. Most runs stop after the "Anything due?" step.
+    - cron: "50 * * * *"
+  workflow_dispatch:
+    inputs:
+      account:
+        description: "Account id to post now (blank = all)"
+        required: false
+      force:
+        description: "Post now even outside the time window"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # save progress, host the day's video
+  actions: write    # start the Preview workflow after a post
+
+concurrency:
+  group: daily-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    # Pinned versions throughout, so GitHub's own upgrades can't change anything mid-year.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Anything due?
+        id: due
+        env:
+          ACCOUNT: ${{ inputs.account }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          if [ -n "$ACCOUNT" ]; then args+=(--account "$ACCOUNT"); fi
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          python -m dailyverse due "${args[@]}"
+
+      - name: Install ffmpeg
+        if: steps.due.outputs.due == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libfribidi0   # fribidi: Arabic/Devanagari shaping
+
+      - name: Install Python packages
+        if: steps.due.outputs.due == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Render and post
+        if: steps.due.outputs.due == 'true'
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # pushes the video branch
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}       # gh CLI, for the release fallback
+          ACCOUNT: ${{ inputs.account }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          if [ -n "$ACCOUNT" ]; then args+=(--account "$ACCOUNT"); fi
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          python -m dailyverse post "${args[@]}"
+
+      - name: Save progress
+        id: save
+        if: always()
+        run: |
+          message="Record today's posts"
+          # GitHub turns off scheduled workflows in a public repo after 60 days without a
+          # commit. Posting commits daily; this covers a long stretch with no posts.
+          last_commit=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last_commit )) -gt $(( 30 * 86400 )) ]; then
+            date -u +%Y-%m-%dT%H:%M:%SZ > state/heartbeat.txt
+            message="Keep scheduled workflows active"
+          fi
+          if [ -n "$(git status --porcelain state/)" ]; then
+            git config user.name "daily-verse-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add state/
+            git commit -q -m "$message"
+            git pull -q --rebase origin main   # in case something was pushed while this ran
+            git push -q origin HEAD:main
+            echo "saved=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Refresh the preview page
+        if: steps.save.outputs.saved == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run preview.yml --ref main -R "${{ github.repository }}"

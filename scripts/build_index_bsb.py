@@ -1,0 +1,32 @@
+"""Rebuild traditions/christianity/texts/bsb.json from the public domain Berean Standard Bible.
+
+Use this as the template for adding any new text: download a public domain source,
+flatten it into {"Work Chapter:Verse": "text"} (or {"Work Chapter": "text"} for
+chapter-only texts), and save it under traditions/<id>/texts/.
+
+    python scripts/build_index_bsb.py
+"""
+import json
+from pathlib import Path
+
+import requests
+
+SRC = "https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/json/BSB.json"
+OUT = Path(__file__).resolve().parent.parent / "traditions" / "christianity" / "texts" / "bsb.json"
+
+
+def main() -> None:
+    data = requests.get(SRC, timeout=120).json()
+    works, verses = [], {}
+    for book in data["books"]:
+        works.append({"name": book["name"], "chapters": [len(c["verses"]) for c in book["chapters"]]})
+        for ch in book["chapters"]:
+            for v in ch["verses"]:
+                verses[f"{book['name']} {ch['chapter']}:{v['verse']}"] = v["text"].strip()
+    OUT.write_text(json.dumps({"id": "bsb", "title": "Berean Standard Bible", "works": works, "verses": verses},
+                              ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"{len(verses)} verses in {len(works)} books -> {OUT}")
+
+
+if __name__ == "__main__":
+    main()

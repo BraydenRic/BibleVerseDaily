@@ -1,0 +1,45 @@
+{
+  "id": "islam",
+  "enabled": false,
+  "tradition": "islam",
+  "start_date": "2026-10-20",
+  "plans": [
+    "01-al-fatiha",
+    "02-al-baqarah",
+    "03-al-imran-to-at-tawbah",
+    "04-yunus-hud-yusuf",
+    "05-ar-rad-to-al-isra",
+    "06-al-kahf",
+    "07-maryam-to-al-furqan",
+    "08-ash-shuara-to-ya-sin",
+    "09-as-saffat-to-al-hadid",
+    "10-al-mujadila-to-al-mursalat",
+    "11-juz-amma"
+  ],
+  "seasonal": [
+    {
+      "plan": "12-night-journey",
+      "start": "2027-01-04"
+    },
+    {
+      "plan": "13-ramadan",
+      "start": "2027-02-08"
+    },
+    {
+      "plan": "14-ibrahim-and-the-hajj",
+      "start": "2027-05-07"
+    },
+    {
+      "plan": "15-hijrah-to-ashura",
+      "start": "2027-06-06"
+    }
+  ],
+  "timezone": "Europe/London",
+  "post_time": "12:00",
+  "window_minutes_before": 30,
+  "window_minutes_after": 120,
+  "secrets": {
+    "user_id": "IG_USER_ID_ISLAM",
+    "access_token": "IG_ACCESS_TOKEN_ISLAM"
+  }
+}

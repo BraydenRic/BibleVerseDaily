@@ -1,0 +1,44 @@
+{
+  "id": "islam",
+  "name": "Islam",
+  "unit_name": "verse",
+  "texts": {
+    "pickthall": {
+      "title": "The Meaning of the Glorious Koran (Marmaduke Pickthall, 1930)",
+      "short": "Pickthall",
+      "file": "texts/pickthall.json",
+      "license": "Public domain: first published 1930 (US public domain since 2026); Pickthall died in 1936.",
+      "source": "Project Gutenberg #16955, Pickthall paragraphs only (https://www.gutenberg.org/ebooks/16955)",
+      "attribution": "Translation of the meaning by Marmaduke Pickthall (1930, public domain). Arabic text: Tanzil Project, tanzil.net."
+    },
+    "arabic": {
+      "title": "The Quran, Uthmani script",
+      "short": "Arabic",
+      "file": "texts/arabic.json",
+      "license": "Tanzil Quran Text (CC BY 3.0): verbatim copies only, credit Tanzil and link tanzil.net. Notice kept in texts/arabic.json. https://tanzil.net/docs/text_license",
+      "source": "https://tanzil.net/download (Uthmani, text with verse numbers)",
+      "attribution": "Arabic text: Tanzil Project, tanzil.net."
+    }
+  },
+  "style": {
+    "audio": "silent",
+    "palettes": [
+      ["#0b1f1c", "#2e6b5e", ["#e8d29a", "#7fc4b0", "#cfe7dc"]],
+      ["#0d1630", "#34507a", ["#f0d48a", "#9bb6e0", "#d9e4f5"]],
+      ["#1d1726", "#8f6550", ["#f2c98a", "#e3a77d", "#8f7bb0"]],
+      ["#08232a", "#2a6f78", ["#9fd8d2", "#e9d9a6", "#6fb2c4"]],
+      ["#17201a", "#5f7552", ["#e6dcb0", "#a9c69a", "#d8c690"]]
+    ],
+    "original": {
+      "text": "arabic",
+      "font": "AmiriQuran-Regular.ttf",
+      "direction": "rtl",
+      "language": "ar",
+      "on_screen": true,
+      "in_caption": false,
+      "line_height": 1.8
+    }
+  },
+  "ref_display": {},
+  "hashtags": "#quran #islam #ayah #dailyreminder"
+}

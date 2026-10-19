@@ -1,0 +1,42 @@
+{
+  "id": "hinduism",
+  "enabled": false,
+  "tradition": "hinduism",
+  "start_date": "2026-10-20",
+  "plans": [
+    "01-arjunas-crisis",
+    "02-the-way-of-action",
+    "03-the-way-of-devotion",
+    "04-the-way-of-knowledge"
+  ],
+  "seasonal": [
+    {
+      "plan": "05-festival-of-lights",
+      "start": "2026-11-06"
+    },
+    {
+      "plan": "06-the-gita-in-18-days",
+      "start": "2026-12-03"
+    },
+    {
+      "plan": "07-guru-purnima",
+      "start": "2027-07-18"
+    },
+    {
+      "plan": "08-janmashtami",
+      "start": "2027-08-17"
+    },
+    {
+      "plan": "09-navratri-to-dussehra",
+      "start": "2027-09-30"
+    }
+  ],
+  "timezone": "Asia/Kolkata",
+  "post_time": "12:00",
+  "window_minutes_before": 30,
+  "window_minutes_after": 120,
+  "secrets": {
+    "user_id": "IG_USER_ID_HINDUISM",
+    "access_token": "IG_ACCESS_TOKEN_HINDUISM"
+  }
+}

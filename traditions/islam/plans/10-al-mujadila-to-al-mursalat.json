@@ -43,8 +43,10 @@
       "caption": "At-Taghabun, \"Mutual Disillusion\", has 18 verses and is usually classed as Medinan. Its name refers to the Day of Judgment, when people learn who truly gained and who lost. The early scholar Alqamah is reported to have explained this verse as someone struck by misfortune who knows it comes from Allah and accepts it."
     },
     {
-      "ref": "At-Talaq 65:3",
-      "caption": "At-Talaq, \"Divorce\", is a Medinan surah of 12 verses. Among its rules for separation come some of the Quran's most quoted lines on trust. The previous verse promises a way out for those who keep their duty to Allah; this one adds provision from unexpected places, and that Allah suffices for whoever relies on Him (tawakkul)."
+      "ref": "At-Talaq 65:2-3",
+      "display": "And whosoever keepeth his duty to Allah, Allah will appoint a way out for him, and will provide for him from (a quarter) whence he hath no expectation. And whosoever putteth his trust in Allah, He will suffice him.",
+      "display_original": "وَمَن يَتَّقِ ٱللَّهَ يَجْعَل لَّهُۥ مَخْرَجًا وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ وَمَن يَتَوَكَّلْ عَلَى ٱللَّهِ فَهُوَ حَسْبُهُۥٓ",
+      "caption": "At-Talaq, \"Divorce\", is a Medinan surah of 12 verses. In the middle of its rules for separation come some of the Quran's most quoted lines on trust. Whoever keeps their duty to Allah (taqwa) is promised a way out and provision from where they never expected, and whoever relies on Him (tawakkul) will find Him enough."
     },
     {
       "ref": "At-Tahrim 66:11",
@@ -105,8 +107,8 @@
       "caption": "Al-Muddaththir, \"The Cloaked One\", is a Meccan surah of 56 verses. A hadith in Sahih al-Bukhari places these verses after a pause in revelation that followed the first verses of Al-Alaq. They mark the call to begin preaching; commentators explain \"pollution\" as the worship of idols."
     },
     {
-      "ref": "Al-Qiyamah 75:16-19",
-      "caption": "Al-Qiyamah, \"The Resurrection\", is a Meccan surah of 40 verses. According to a hadith in Sahih al-Bukhari, the Prophet Muhammad ﷺ used to move his lips quickly as revelation came, anxious not to lose it. These verses reassure him: gathering, reciting and explaining the Quran are in Allah's care."
+      "ref": "Al-Qiyamah 75:3-4",
+      "caption": "Al-Qiyamah, \"The Resurrection\", is a Meccan surah of 40 verses. It answers those who doubted that scattered bones could live again: Allah is able to restore even the fingers, which commentators take as the fingertips, the finest detail of a person. The surah closes on the same note: is the One who shaped human life not able to bring the dead to life?"
     },
     {
       "ref": "Al-Insan 76:1",
@@ -119,8 +121,8 @@
       "caption": "A portrait of the righteous: they feed the poor, the orphan and the captive, and seek no thanks. Commentators read \"for love of Him\" two ways: out of love for Allah, or despite their own love of the food. Either way, the giving is quiet and expects nothing back."
     },
     {
-      "ref": "Al-Mursalat 77:50",
-      "caption": "Al-Mursalat, \"The Emissaries\", is a Meccan surah of 50 verses; a hadith in Sahih al-Bukhari says it was revealed while the Prophet Muhammad ﷺ was in a cave at Mina. It repeats one warning ten times and ends with this question. That closes this journey from Al-Mujadila to Al-Mursalat; thank you for reading along."
+      "ref": "Al-Mursalat 77:25-27",
+      "caption": "Al-Mursalat, \"The Emissaries\", is a Meccan surah of 50 verses in which a refrain of warning returns ten times. Early commentators explained the \"receptacle\" as the earth holding the living on its surface and the dead within it. That closes this journey from Al-Mujadila to Al-Mursalat; thank you for reading along."
     }
   ]
 }

@@ -107,7 +107,9 @@
     },
     {
       "ref": "Al-An'am 6:108",
-      "caption": "This verse forbids insulting what others worship, lest they insult Allah in return out of ignorance. Scholars have drawn from it a wider principle: avoiding words that lead to greater harm. It was revealed in Mecca, when the Muslims were a small and persecuted community."
+      "display": "Revile not those unto whom they pray beside Allah lest they wrongfully revile Allah through ignorance.",
+      "display_original": "وَلَا تَسُبُّوا۟ ٱلَّذِينَ يَدْعُونَ مِن دُونِ ٱللَّهِ فَيَسُبُّوا۟ ٱللَّهَ عَدْوًۢا بِغَيْرِ عِلْمٍ",
+      "caption": "The first sentence of this verse forbids insulting what others worship, lest they insult Allah in return out of ignorance. Scholars have drawn from it a wider principle: avoiding words that lead to greater harm. It was revealed in Mecca, when the Muslims were a small and persecuted community."
     },
     {
       "ref": "Al-An'am 6:160",
@@ -126,22 +128,20 @@
       "caption": "\"O Children of Adam\" is a call to all humanity. Clothing is presented as a gift that covers and adorns, and then the verse points beyond it: the best garment is libas at-taqwa, \"the raiment of restraint from evil\", meaning mindfulness of Allah. \"Splendid vesture\" means fine clothing."
     },
     {
-      "ref": "Al-A'raf 7:46",
-      "caption": "The surah takes its name from this verse. Al-A'raf, \"the Heights\", lie between the Garden and the Fire, and the people on them recognise both groups by their marks. Commentators hold several views of who they are; a common one is people whose good and bad deeds are evenly balanced, still hoping to enter."
+      "ref": "Al-A'raf 7:55",
+      "caption": "Al-A'raf takes its name from \"the Heights\", a place between the Garden and the Fire described a few verses earlier. Here it turns to prayer: call on Allah humbly and quietly. Many commentators, Ibn Kathir among them, read \"aggressors\" here as those who overstep proper limits, including in how they pray."
     },
     {
       "ref": "Al-A'raf 7:151",
       "caption": "The Prophet Musa (Moses) returns from his meeting with Allah to find his people worshipping a calf. In his anger he seizes his brother, the Prophet Harun (Aaron), who explains that the people overpowered him. Musa's anger turns to prayer for them both. \"Most Merciful of all who show mercy\" is arham ar-rahimin."
     },
     {
-      "ref": "Al-A'raf 7:172",
-      "display": "And (remember) when thy Lord brought forth from the Children of Adam, from their reins, their seed, and made them testify of themselves, (saying): Am I not your Lord? They said: Yea, verily. We testify.",
-      "display_original": "وَإِذْ أَخَذَ رَبُّكَ مِنۢ بَنِىٓ ءَادَمَ مِن ظُهُورِهِمْ ذُرِّيَّتَهُمْ وَأَشْهَدَهُمْ عَلَىٰٓ أَنفُسِهِمْ أَلَسْتُ بِرَبِّكُمْ قَالُوا۟ بَلَىٰ شَهِدْنَآ",
-      "caption": "This scene is known as the covenant of Alast, from the Arabic of the question Allah asks, alastu bi-rabbikum. Many commentators understand it as Adam's descendants being brought forth before their lives on earth and affirming Allah as their Lord. \"Reins\" is an old word for loins. The theme recurs often in later Muslim poetry."
-    },
-    {
       "ref": "Al-A'raf 7:180",
       "caption": "\"The fairest names\" are al-asma al-husna, the Most Beautiful Names of Allah, such as the Merciful, the Forgiving and the Wise. A well-known hadith speaks of ninety-nine of them. Calling on Allah by His names is a central part of Muslim prayer and remembrance."
+    },
+    {
+      "ref": "Al-A'raf 7:196",
+      "caption": "Near its end, Al-A'raf contrasts idols, which cannot even help themselves, with Allah. The Prophet Muhammad ﷺ is told to declare where his own protection lies, and these are the words given to him. \"Protecting Friend\" renders wali, a guardian and close ally, and al-Wali is one of the names of Allah."
     },
     {
       "ref": "Al-A'raf 7:199",
@@ -153,12 +153,12 @@
       "caption": "Al-Anfal, \"The Spoils of War\", is a Medinan surah of 75 verses, revealed after the Battle of Badr in 624 CE. Early on comes this portrait of believers: hearts that tremble at the mention of Allah, faith that grows on hearing His verses, and trust in Him, tawakkul."
     },
     {
-      "ref": "Al-Anfal 8:53",
-      "caption": "A principle the Quran states twice, here and in Ar-Ra'd 13:11: Allah does not change the blessing He has given a people until they change what is within themselves. In context it explains the fall of earlier nations, such as Pharaoh's people, who rejected the signs they were given."
+      "ref": "Al-Anfal 8:28",
+      "caption": "In a run of verses addressed to the believers, Al-Anfal names the things people hold dearest, wealth and children, and calls them a fitnah: a test or trial. Commentators explain that the test lies in how these blessings are handled. Almost the same words appear in At-Taghabun 64:15, which likewise points to the \"immense reward\" with Allah."
     },
     {
-      "ref": "Al-Anfal 8:63",
-      "caption": "Commentators understand the believers whose hearts Allah \"attuned\" to include Aws and Khazraj, the two tribes of Medina whose long feud ended with Islam. The verse says no amount of wealth could have brought them together. In a surah about conflict, unity is presented as a gift."
+      "ref": "Al-Anfal 8:53",
+      "caption": "A principle the Quran states twice, here and in Ar-Ra'd 13:11: Allah does not change the blessing He has given a people until they change what is within themselves. In context it explains the fall of earlier nations, such as Pharaoh's people, who rejected the signs they were given."
     },
     {
       "ref": "At-Tawbah 9:51",

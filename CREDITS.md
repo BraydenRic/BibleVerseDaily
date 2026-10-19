@@ -13,7 +13,7 @@ the attribution line given there.
 | The Quran, Uthmani script, Tanzil Project | Islam, Arabic | [Tanzil text license](https://tanzil.net/docs/text_license) (CC BY 3.0): verbatim copies only, with credit and a link to tanzil.net. The full notice is kept in `traditions/islam/texts/arabic.json`, and the text is stored unchanged | [tanzil.net](https://tanzil.net) |
 | *The Bhagavad-Gita*, translated by Annie Besant (1895; 4th edition 1922) | Hinduism, English | Public domain: published before 1931; Besant died in 1933 | [Wikisource](https://en.wikisource.org/wiki/Bhagavad-Gita_(Besant_4th)) |
 | Bhagavad Gita, Sanskrit (Devanagari) as printed in Besant's edition | Hinduism, on screen | Public domain (4th edition, 1922) | [Wikisource](https://en.wikisource.org/wiki/Bhagavad-Gita_(Besant_4th)) |
-| Bhagavad Gita, IAST transliteration | Hinduism, captions | [Unlicense](https://github.com/gita/gita/blob/main/LICENSE) | [gita/gita](https://github.com/gita/gita) (`data/verse.json` only; its translation files are not used) |
+| Bhagavad Gita, IAST transliteration | Hinduism, captions | [Unlicense](https://github.com/gita/gita/blob/main/LICENSE) | [gita/gita](https://github.com/gita/gita) (`data/verse.json` only; its translation files are not used). For 16 verses whose line doesn't match Besant's numbering, the line is generated from the Devanagari with [indic-transliteration](https://github.com/indic-transliteration/indic_transliteration_py) (MIT, used only by the build script) |
 
 The `scripts/build_index_*.py` scripts rebuild each text index from these sources.
 

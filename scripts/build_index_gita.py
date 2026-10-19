@@ -5,8 +5,11 @@
   published before 1931 (US) and Besant died in 1933 (life+70 elsewhere). Parsed from
   Wikisource's rendered chapter pages: each Sanskrit verse ends with a Devanagari "॥ N ॥"
   marker and Besant's English for it follows, ending "(N)".
-- IAST transliteration (for captions): github.com/gita/gita (Unlicense). Its translation files
-  are modern and copyrighted, so only verse.json is used.
+- IAST transliteration (for captions): github.com/gita/gita (Unlicense), whose word-split
+  romanization reads easily. Its translation files are modern and copyrighted, so only
+  verse.json is used. Where its line doesn't match the verse (a handful are merged or shifted
+  relative to Besant's numbering), the line is generated from the Devanagari instead with
+  indic-transliteration (MIT; `pip install indic-transliteration`, only needed for this script).
 
 Both sources number chapter 13 with Arjuna's opening question as verse 1 (701 verses in all);
 many Indian editions start chapter 13 one verse later.
@@ -106,6 +109,31 @@ def besant_chapter(chapter: int) -> tuple[dict[int, str], dict[int, str]]:
     return sanskrit, english
 
 
+def _skeleton(s: str) -> str:
+    """Letters only, with gita/gita's spelling conventions mapped to standard IAST, so two
+    romanizations can be compared for 'same verse?' rather than for style."""
+    s = s.lower().replace("’", "").replace("'", "")
+    for a, b in (("ṣh", "ṣ"), ("śh", "ś"), ("chh", "c"), ("ch", "c"), ("ṛi", "ṛ"), ("ṁ", "ṃ"), ("oṃ", "")):
+        s = s.replace(a, b)
+    return re.sub(r"[^a-zāīūṛṝḷḹēōṃḥṅñṭḍṇśṣ]", "", s)
+
+
+def matching_iast(iast: dict[str, str], sanskrit: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """gita/gita's readable line where it is the same verse as Besant's Sanskrit, otherwise a
+    line generated from that Sanskrit. Returns (lines, keys that were regenerated)."""
+    import difflib
+
+    from indic_transliteration import sanscript
+    out, regenerated = {}, []
+    for key, deva in sanskrit.items():
+        generated = sanscript.transliterate(deva, sanscript.DEVANAGARI, sanscript.IAST)
+        same = difflib.SequenceMatcher(None, _skeleton(generated), _skeleton(iast.get(key, ""))).ratio() >= 0.9
+        out[key] = iast[key] if same else generated
+        if not same:
+            regenerated.append(key.rsplit(" ", 1)[1])
+    return out, regenerated
+
+
 def main() -> None:
     # gita/gita supplies the romanized (IAST) line and the verse counts; its Devanagari has some
     # encoding damage (fused speaker tags, misplaced vowel signs, truncated verses), so the
@@ -129,6 +157,8 @@ def main() -> None:
             else:
                 missing.append(f"{c}:{v}")
     assert not any("Upanishads of the Bhagavad-Gita" in e for e in english.values()), "a colophon leaked into a verse"
+    iast, regenerated = matching_iast(iast, sanskrit)
+    print(f"IAST regenerated from the Devanagari for {len(regenerated)} verses: {', '.join(regenerated)}")
     works = [{"name": WORK, "chapters": [counts[c] for c in range(1, 19)]}]
 
     OUT.mkdir(parents=True, exist_ok=True)

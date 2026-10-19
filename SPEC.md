@@ -251,7 +251,7 @@ It ends by printing how far ahead each account is scheduled. Problems on disable
 ### `daily-post.yml`
 
 - Cron `50 * * * *`: hourly. Each account posts only inside its own window, in its own time zone (daylight saving included), and once a day. So one schedule serves any number of accounts in any time zones, and with a 30/120-minute window around noon there are three runs inside it every day: two automatic retries.
-- First step: `python -m dailyverse due` on bare Python. Most runs stop there, in seconds. Only when something is due does it install ffmpeg and the pinned requirements and run `python -m dailyverse post`, with `SECRETS_JSON: ${{ toJSON(secrets) }}` so any account's secrets can be read without editing the workflow.
+- First step: `python -m dailyverse due` on bare Python. Most runs stop there, in seconds. Only when something is due does it install ffmpeg and the pinned requirements and run `python -m dailyverse post`. Each account's secrets are passed to that step by name (`IG_USER_ID_X: ${{ secrets.IG_USER_ID_X }}`), never the whole secrets map: that keeps access minimal, and GitHub blocks workflows that hand over every secret (`toJSON(secrets)`) as possibly malicious. A test checks that every account's secrets are passed in both daily-post.yml and refresh-token.yml.
 - Commits `state/` when it changed (pulling first in case of a concurrent push), then starts the Preview workflow. GitHub disables scheduled workflows in a public repo after 60 days without a commit; the daily commit prevents that, and if nothing has been committed for 30 days the step writes `state/heartbeat.txt` as a keep-alive commit.
 - Manual run inputs: `account` and `force` (post right now), passed through environment variables, not interpolated into the script.
 - Everything is pinned (runner image `ubuntu-24.04`, exact action versions, exact Python packages) so GitHub's upgrades can't change behavior mid-year.
@@ -287,7 +287,7 @@ It ends by printing how far ahead each account is scheduled. Problems on disable
 2. Write a small script like `scripts/build_index_bsb.py` that downloads the text and saves `traditions/<id>/texts/<text>.json` in the format above.
 3. Write the first plan in `traditions/<id>/plans/01-<name>.json` and list it in the account's `plans`.
 4. Create a separate Instagram account, add it as an Instagram Tester on the same Meta app, generate its token, and add its two secrets (the names are in the account file).
-5. Run `validate` and check the preview, then set `"enabled": true`. No workflow changes are needed, even for a different time zone or post time.
+5. Pass the account's secrets to the workflows by name (two lines in daily-post.yml, one in refresh-token.yml; `new-tradition` prints them and a test checks). Run `validate` and check the preview, then set `"enabled": true`. Time zones and post times need no workflow changes.
 
 Traditions set up so far, and candidates (verify any license yourself before using; US public domain status may differ elsewhere):
 

@@ -59,7 +59,16 @@ jobs:
       - name: Render and post
         if: steps.due.outputs.due == 'true'
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
+          # Each account's two secrets, passed by name (names are in accounts/*.json). Add a pair
+          # here, and the token line to refresh-token.yml, for every new account; a test checks.
+          # Passing secrets individually (never the whole secrets map) keeps each step's access
+          # minimal, and GitHub blocks workflows that dump all secrets as possibly malicious.
+          IG_USER_ID_CHRISTIANITY: ${{ secrets.IG_USER_ID_CHRISTIANITY }}
+          IG_ACCESS_TOKEN_CHRISTIANITY: ${{ secrets.IG_ACCESS_TOKEN_CHRISTIANITY }}
+          IG_USER_ID_ISLAM: ${{ secrets.IG_USER_ID_ISLAM }}
+          IG_ACCESS_TOKEN_ISLAM: ${{ secrets.IG_ACCESS_TOKEN_ISLAM }}
+          IG_USER_ID_HINDUISM: ${{ secrets.IG_USER_ID_HINDUISM }}
+          IG_ACCESS_TOKEN_HINDUISM: ${{ secrets.IG_ACCESS_TOKEN_HINDUISM }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # pushes the video branch
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}       # gh CLI, for the release fallback
           ACCOUNT: ${{ inputs.account }}

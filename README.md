@@ -25,7 +25,7 @@ Nothing posts until an account is switched on. For each one:
 
 1. Create the Instagram account, switch it to a professional (Creator) account, and keep it public.
 2. In the Meta developer app, add it as an **Instagram Tester**, accept the invite from the account, and generate its token (SPEC.md section 6).
-3. Add its two repo secrets. The names are in its account file (`IG_USER_ID_<ACCOUNT>`, `IG_ACCESS_TOKEN_<ACCOUNT>`). The repo also needs `GH_PAT` once, for token refreshes.
+3. Add its two repo secrets. The names are in its account file (`IG_USER_ID_<ACCOUNT>`, `IG_ACCESS_TOKEN_<ACCOUNT>`). The repo also needs `GH_PAT` once, for token refreshes. The three current accounts are already wired into the workflows.
 4. In `accounts/<account>.json`, set `"start_date"` to the first day it should post and `"enabled": true`, then push. It posts at the next noon on or after `start_date`.
 
 Date-pinned plans keep their dates whenever you launch; the regular reading starts on `start_date`. Islamic and Hindu dates follow the lunar calendar and can differ by a day by community, which the captions allow for. Have someone who practices each tradition read its preview before launch.
@@ -62,4 +62,4 @@ Things that do need you, eventually:
 python -m dailyverse new-tradition taoism      # or: new-tradition buddhism --account dhammapada
 ```
 
-This creates the tradition folder, a template plan, and a disabled **draft** account with its own secret names (`validate` only warns about drafts), and prints the remaining steps. No workflow changes are needed, even for a different time zone. See SPEC.md section 7.
+This creates the tradition folder, a template plan, and a disabled **draft** account with its own secret names (`validate` only warns about drafts), and prints the remaining steps. The only workflow change is passing the new account's two secrets by name (the command prints the exact lines, and a test fails if they're missing). Time zones and post times need no workflow changes. See SPEC.md section 7.

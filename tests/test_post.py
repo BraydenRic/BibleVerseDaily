@@ -1,5 +1,4 @@
 """`post` end to end with Instagram, hosting and rendering replaced by fakes."""
-import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -54,7 +53,8 @@ def fakes(world, monkeypatch):
     monkeypatch.setattr(render, "render_reel", fake_render)
     monkeypatch.setattr(hosting, "host_video", fake_host)
     monkeypatch.setattr(instagram, "Instagram", FakeInstagram)
-    monkeypatch.setenv("SECRETS_JSON", json.dumps({"IG_USER_ID_ACCT": "123", "IG_ACCESS_TOKEN_ACCT": "tok"}))
+    monkeypatch.setenv("IG_USER_ID_ACCT", "123")
+    monkeypatch.setenv("IG_ACCESS_TOKEN_ACCT", "tok")
     return hosted
 
 
@@ -118,7 +118,7 @@ def test_a_dropped_caption_fails_the_run_but_keeps_the_progress(world, fakes, mo
 
 
 def test_missing_secrets_fail_before_rendering(world, fakes, monkeypatch):
-    monkeypatch.delenv("SECRETS_JSON")
+    monkeypatch.delenv("IG_ACCESS_TOKEN_ACCT")
     rendered = []
     monkeypatch.setattr(render, "render_reel", lambda *a: rendered.append(a))
     assert cli.main(["post", "--force"]) == 1

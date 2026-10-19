@@ -100,6 +100,12 @@ def next_steps(tradition_id: str, account_id: str | None = None) -> str:
   2. Write scripts/build_index_<text>.py (copy build_index_bsb.py) and build traditions/{tradition_id}/texts/<text>.json.
   3. Write the first plan in traditions/{tradition_id}/plans/ and list it in accounts/{account_id}.json.
   4. Create the Instagram account, add it as an Instagram Tester on the Meta app, generate its token,
-     and add the repo secrets IG_USER_ID_{stem} and IG_ACCESS_TOKEN_{stem}.
+     and add the repo secrets IG_USER_ID_{stem} and IG_ACCESS_TOKEN_{stem}. Then pass them to the
+     workflows (each secret is passed by name; the tests check this):
+       .github/workflows/daily-post.yml, "Render and post" env:
+         IG_USER_ID_{stem}: ${{{{ secrets.IG_USER_ID_{stem} }}}}
+         IG_ACCESS_TOKEN_{stem}: ${{{{ secrets.IG_ACCESS_TOKEN_{stem} }}}}
+       .github/workflows/refresh-token.yml, "Refresh and save" env:
+         IG_ACCESS_TOKEN_{stem}: ${{{{ secrets.IG_ACCESS_TOKEN_{stem} }}}}
   5. Remove "draft": true, run `python -m dailyverse validate` and the Preview workflow,
      then set "start_date" and "enabled": true to launch."""

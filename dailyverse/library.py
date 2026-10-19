@@ -57,15 +57,11 @@ def save_state(account_id: str, state: dict) -> None:
 
 
 def secret(name: str) -> str:
-    """Read a secret from its own env var, or from SECRETS_JSON (the whole Actions secrets map)."""
+    """Read a secret from its environment variable. The workflows pass each account's secrets
+    by name; an unset or empty secret (GitHub passes "" for a secret that doesn't exist) fails."""
     if os.environ.get(name):
         return os.environ[name]
-    blob = os.environ.get("SECRETS_JSON")
-    if blob:
-        val = json.loads(blob).get(name)
-        if val:
-            return val
-    raise KeyError(f"Missing secret {name}")
+    raise KeyError(f"Missing secret {name}: add it to the repo's Actions secrets and to the workflow's env block")
 
 
 # ---------------------------------------------------------------- references

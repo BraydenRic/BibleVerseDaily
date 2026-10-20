@@ -263,7 +263,7 @@ It ends by printing how far ahead each account is scheduled. Problems on disable
 
 ### `refresh-token.yml`
 
-- Weekly. Instagram long-lived tokens last 60 days and can be refreshed once they are at least 24 hours old. `refresh-tokens` gets a new token for each account and saves it with `gh secret set` using a fine-grained personal access token stored as `GH_PAT`.
+- Weekly. Instagram long-lived tokens last 60 days and can be refreshed once they are at least 24 hours old. `refresh-tokens` gets a new token for each account and saves it with `gh secret set` using a fine-grained personal access token stored as `GH_PAT`. Accounts that aren't live yet are included once they have a token, so a token can't expire while its account waits to launch.
 
 ## 6. One-time setup
 

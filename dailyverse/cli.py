@@ -148,11 +148,19 @@ def cmd_validate(args) -> int:
 
 
 def cmd_refresh_tokens(args) -> int:
-    """Refresh every enabled account's token and save it back with the GitHub CLI (needs GH_TOKEN with secrets:write)."""
+    """Refresh every account's token and save it back with the GitHub CLI (needs GH_TOKEN with secrets:write).
+
+    Accounts that aren't live yet are refreshed too: a token dies after 60 days without a refresh,
+    and an account can easily wait that long between getting its token and launching. A disabled
+    account with no token yet is skipped; a live one without a token is an error.
+    """
     from .instagram import refresh_token
     failures = 0
-    for acct in list_accounts():
+    for acct in list_accounts(enabled_only=False):
         name = acct["secrets"]["access_token"]
+        if not os.environ.get(name) and not acct.get("enabled", True):
+            log(f"[{acct['id']}] no token yet; skipping")
+            continue
         try:
             new, expires = refresh_token(secret(name))
             print(f"::add-mask::{new}", flush=True)

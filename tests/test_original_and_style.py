@@ -187,4 +187,4 @@ def test_punctuation_brings_a_natural_pause(with_original):
     assert gap["beginning,"] == round(READ_PACE + PAUSE_COMMA, 2)  # a beat after a comma
     assert gap["there—"] == round(READ_PACE + PAUSE_COMMA, 2)      # words joined by a dash split at it
     assert gap["good."] == round(READ_PACE + PAUSE_STOP, 2)        # a longer one after a sentence
-    assert [w.text for w in words][5:7] == ["there—", "and"]
+    assert [w.text for w in words][6:8] == ["there—", "and"]

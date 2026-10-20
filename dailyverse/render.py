@@ -13,6 +13,7 @@ clear: below the Reels header, above the caption and buttons, and inside the 4:5
 from __future__ import annotations
 
 import math
+import re
 import subprocess
 import tempfile
 import wave
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FONTS = ROOT / "assets" / "fonts"
 
 W, H = 1080, 1920          # 9:16 Reel
-BG_SCALE = 4               # backgrounds are all soft light, so they're drawn at 1/4 size and upscaled
+BG_SCALE = 2               # backgrounds are drawn at half size (soft light upscales cleanly) and scaled up
 FPS = 30
 SR = 44100
 CREAM = (255, 251, 244)
@@ -72,7 +73,9 @@ T_HEADER, T_FIRST = 0.3, 1.0
 FADE_IN, RISE = 0.55, 10              # each word fades in while rising this many pixels into place
 ORIGINAL_STEP = 0.14                  # the original appears word by word at an easy, steady pace
 READ_PACE = 0.27                      # per English word: unhurried reading speed
-PAUSE_COMMA, PAUSE_STOP = 0.12, 0.3   # an extra breath after , ; : and after . ! ?
+# Natural pauses, as a reader would take them: a beat at , ; : and dashes, a longer one at the end
+# of a sentence, and a beat at the Sanskrit danda (।, the end of a half-verse).
+PAUSE_COMMA, PAUSE_STOP, PAUSE_DANDA = 0.45, 0.85, 0.4
 MIN_SECONDS, MAX_SECONDS = 12.0, 30.0
 
 
@@ -178,7 +181,7 @@ def layout(card: Card) -> dict:
     room = BOX_BOTTOM - BOX_TOP - DIVIDER_H - REF_H
     shaping = _shaping(card) if card.original else {}
     for size in range(78, 26, -2):
-        L = {"size": size, "font": _font("Lora-Variable.ttf", size, "Regular"), "shaping": shaping}
+        L = {"size": size, "font": _font("Lora-Variable.ttf", size, "Medium"), "shaping": shaping}
         L["lines"] = _wrap(draw, card.text, L["font"], TEXT_W)
         L["line_h"] = int(size * 1.42)
         L["block_h"] = len(L["lines"]) * L["line_h"]
@@ -198,11 +201,11 @@ def layout(card: Card) -> dict:
 def _header(card: Card, draw: ImageDraw.ImageDraw) -> tuple[ImageFont.FreeTypeFont, list[str]]:
     """One letter-spaced line if it fits ("GOSPEL OF MARK · DAY 3 OF 40"), else plan over day."""
     text = card.header or card.label
-    for size in (29, 27):
-        font = _font("Poppins-Regular.ttf", size)
+    for size in (30, 28):
+        font = _font("Poppins-Medium.ttf", size)
         if draw.textlength(_spaced(text), font=font) <= TEXT_W:
             return font, [_spaced(text)]
-    font = _font("Poppins-Regular.ttf", 26)
+    font = _font("Poppins-Medium.ttf", 27)
     return font, [_spaced(part) for part in text.split(" · ", 1)]
 
 
@@ -227,21 +230,39 @@ class Timeline:
     cover: float               # a moment with everything on screen (grid cover, preview still)
 
 
-def _word_starts(draw, words: list[str], font, origin_x: float, advance: float, shaping: dict) -> list[float]:
-    """Where each word of a centred line starts, in reading order. Arabic runs right to left, so
-    its first word sits at the right end of the line."""
+def _units(text: str, split_dashes: bool) -> list[tuple[int, int]]:
+    """Character spans of the pieces that appear one at a time: each word, and in English each half
+    of words joined by a dash ("confidence—but"), so the pause can fall at the dash."""
+    spans = []
+    for m in re.finditer(r"\S+", text):
+        start, end = m.span()
+        if split_dashes:
+            for d in re.finditer("—", text[start:end]):
+                cut = start + d.end()
+                if cut < end:
+                    spans.append((start, cut))
+                    start = cut
+        spans.append((start, end))
+    return spans
+
+
+def _unit_x(draw, text: str, span: tuple[int, int], font, origin_x: float, advance: float, shaping: dict) -> float:
+    """Where a piece of a centred line starts. Arabic runs right to left, so its first word sits at
+    the right end of the line."""
     if shaping.get("direction") == "rtl":
-        return [origin_x + advance - draw.textlength(" ".join(words[:i + 1]), font=font, **shaping)
-                for i in range(len(words))]
-    return [origin_x + (draw.textlength(" ".join(words[:i]) + " ", font=font, **shaping) if i else 0)
-            for i in range(len(words))]
+        return origin_x + advance - draw.textlength(text[:span[1]], font=font, **shaping)
+    return origin_x + (draw.textlength(text[:span[0]], font=font, **shaping) if span[0] else 0)
 
 
-def _english_step(word: str) -> float:
-    """Time until the next word: reading pace, plus a breath at punctuation (closing quotes aside)."""
-    end = word.rstrip("\u201d\u2019\"')]")
+def _english_step(piece: str) -> float:
+    """Time until the next piece: reading pace, plus a pause at punctuation (closing quotes aside)."""
+    end = piece.rstrip("”’\"')]")
     return READ_PACE + (PAUSE_STOP if end.endswith((".", "!", "?")) else
-                        PAUSE_COMMA if end.endswith((",", ";", ":", "\u2014")) else 0.0)
+                        PAUSE_COMMA if end.endswith((",", ";", ":", "—")) else 0.0)
+
+
+def _original_step(piece: str) -> float:
+    return ORIGINAL_STEP + (PAUSE_DANDA if piece.endswith(("।", "॥")) else 0.0)
 
 
 def timeline(card: Card) -> Timeline:
@@ -258,26 +279,27 @@ def timeline(card: Card) -> Timeline:
     y = BOX_TOP + max(0, (BOX_BOTTOM - BOX_TOP - total) // 2)
     t = T_FIRST
 
-    def words_of(text: str, font, fill: tuple, shaping: dict, step) -> None:
+    def words_of(text: str, font, fill: tuple, shaping: dict, step, split_dashes: bool = False) -> None:
         nonlocal t
-        words = text.split(" ")
         advance = draw.textlength(text, font=font, **shaping)
-        for word, x in zip(words, _word_starts(draw, words, font, (W - advance) / 2, advance, shaping)):
-            lines.append(Line(word, font, y, t, fill, shaping, x))
-            t += step(word)
+        for span in _units(text, split_dashes):
+            piece = text[span[0]:span[1]]
+            x = _unit_x(draw, text, span, font, (W - advance) / 2, advance, shaping)
+            lines.append(Line(piece, font, y, t, fill, shaping, x))
+            t += step(piece)
 
     for text in L.get("o_lines", []):
-        words_of(text, L["o_font"], CREAM + (255,), L["shaping"], lambda w: ORIGINAL_STEP)
+        words_of(text, L["o_font"], CREAM + (255,), L["shaping"], _original_step)
         y += L["o_line_h"]
     if card.original:
         y += L["o_gap"]
         t += 0.4
     for text in L["lines"]:
         # the translation steps back slightly when it sits under the original
-        words_of(text, L["font"], CREAM + (232 if card.original else 255,), {}, _english_step)
+        words_of(text, L["font"], CREAM + (232 if card.original else 255,), {}, _english_step, split_dashes=True)
         y += L["line_h"]
     ornament_y, ornament_t = y + DIVIDER_H // 2 - 8, t + 0.1
-    lines.append(Line(_spaced(card.ref), _font("Poppins-Medium.ttf", 34), y + DIVIDER_H - 8, t + 0.45,
+    lines.append(Line(_spaced(card.ref), _font("Poppins-Medium.ttf", 36), y + DIVIDER_H - 8, t + 0.45,
                       CREAM + (220,), {}))
 
     # Long passages reveal faster so the whole thing fits in 30 seconds with time to finish reading.
@@ -311,7 +333,7 @@ def cover_time(card: Card) -> float:
 PAD = 44                    # room around each piece for its shadow
 
 
-def _with_shadow(img: Image.Image, blur: float = 14, strength: float = 0.55) -> Image.Image:
+def _with_shadow(img: Image.Image, blur: float = 9, strength: float = 0.5) -> Image.Image:
     """A soft dark halo under light text and shapes, so they read on any part of the scene."""
     alpha = img.split()[3].filter(ImageFilter.GaussianBlur(blur)).point(lambda a: int(a * strength))
     shadow = Image.new("RGBA", img.size, (10, 8, 20, 0))
@@ -557,7 +579,9 @@ class Scene:
             keep = np.sqrt((self.px - ex) ** 2 + ((self.py - ey) * aspect) ** 2) > 0.16
             self.px, self.py = self.px[keep], self.py[keep]
         n = len(self.px)
-        self.size = rng.uniform(0.6, 1.3, n) if self.kind != "night" else rng.uniform(0.45, 0.9, n)
+        # sizes in full-resolution pixels: stars small and sharp, dust and embers a little softer
+        full = {"night": (1.3, 2.6), "sunrise": (2.0, 4.0), "dusk": (2.2, 4.4)}[self.kind]
+        self.size = rng.uniform(*full, n) / BG_SCALE
         self.bright = rng.uniform(0.35, 1.0, n)
         self.rate = rng.uniform(0.15, 0.55, n)                # twinkle / flicker speed (Hz)
         self.phase = rng.uniform(0, 2 * math.pi, n)
@@ -857,6 +881,9 @@ def render_reel(card: Card, out_path: Path) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     bg = scene_for(card)
     landed = motif(card)                      # grows as words finish fading in
+    # A fixed, very fine noise breaks up banding in the gradients. Moving grain did the same but cost
+    # bitrate every frame and smeared when Instagram re-compressed it; a still pattern costs nothing.
+    dither = np.random.default_rng(card.seed).integers(-1, 2, (H, W, 1), dtype=np.int16)
     with tempfile.TemporaryDirectory() as tmp:
         audio = Path(tmp) / "audio.wav"
         make_audio(card.seed, tl.duration, audio, card.audio)
@@ -864,8 +891,12 @@ def render_reel(card: Card, out_path: Path) -> Path:
             "ffmpeg", "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
             "-i", str(audio), "-map", "0:v", "-map", "1:a",
-            "-vf", "noise=alls=3:allf=t,format=yuv420p",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-profile:v", "high",
+            # HD (BT.709) color, converted and tagged, so Instagram doesn't shift the colors
+            "-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
+            "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
+            # high quality, with extra bits for dark, smooth gradients (aq-mode 3), where banding shows first
+            "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-profile:v", "high", "-level", "4.2",
+            "-x264-params", "aq-mode=3",
             "-r", str(FPS), "-c:a", "aac", "-b:a", "128k", "-ar", str(SR),   # 128k: Meta's Reels audio spec
             "-movflags", "+faststart", "-t", f"{tl.duration:.2f}", "-shortest", str(out_path),
         ]
@@ -886,7 +917,8 @@ def render_reel(card: Card, out_path: Path) -> Path:
                     img = p.image.copy()
                     img.putalpha(p.image.getchannel("A").point(lambda v, a=a: int(v * a)))
                     frame.alpha_composite(img, (p.x, p.y + round((1 - a) * RISE)))
-                proc.stdin.write(frame.convert("RGB").tobytes())
+                rgb = np.asarray(frame.convert("RGB"), dtype=np.int16) + dither
+                proc.stdin.write(np.clip(rgb, 0, 255).astype(np.uint8).tobytes())
         finally:
             proc.stdin.close()
         if proc.wait() != 0:

@@ -174,3 +174,17 @@ def test_arabic_words_appear_right_to_left():
             if line.y == first_line_y:
                 xs.append(line.x)
     assert len(xs) > 1 and xs == sorted(xs, reverse=True)
+
+
+def test_punctuation_brings_a_natural_pause(with_original):
+    from dataclasses import replace
+    from dailyverse.render import PAUSE_COMMA, PAUSE_STOP, READ_PACE, timeline
+    card = replace(card_for(first_slot()), original=None,
+                   text="In the beginning, the Word was there—and it was good. So it was.")
+    words = [ln for ln in timeline(card).lines if ln.shaping == {} and ln.x is not None]
+    gap = {w.text: round(nxt.t_in - w.t_in, 2) for w, nxt in zip(words, words[1:])}
+    assert gap["In"] == READ_PACE                                  # an ordinary word
+    assert gap["beginning,"] == round(READ_PACE + PAUSE_COMMA, 2)  # a beat after a comma
+    assert gap["there—"] == round(READ_PACE + PAUSE_COMMA, 2)      # words joined by a dash split at it
+    assert gap["good."] == round(READ_PACE + PAUSE_STOP, 2)        # a longer one after a sentence
+    assert [w.text for w in words][5:7] == ["there—", "and"]

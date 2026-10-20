@@ -23,6 +23,17 @@ def original_text(slot: Slot, for_caption: bool = False) -> str | None:
     return lookup(slot.entry["ref"], load_text(slot.tradition["id"], cfg["text"]))
 
 
+def ref_line(slot: Slot) -> str:
+    """The caption line naming the verse, e.g. 'Psalm 23:1 (BSB)'. With day_line, it's also how a
+    post that's already on Instagram is recognized (cli.catch_up), so keep each on its own line."""
+    return f"{slot.ref_label} ({slot.text_meta['short']})"
+
+
+def day_line(slot: Slot) -> str:
+    """The caption line placing the post in its plan, e.g. 'Day 3 of 40 · Psalms'."""
+    return f"Day {slot.day} of {slot.total} · {slot.plan['title']}"
+
+
 def build_caption(slot: Slot) -> str:
     text = post_text(slot.entry, load_text(slot.tradition["id"], slot.plan["text"]))
     cfg = slot.tradition.get("style", {}).get("original") or {}
@@ -31,9 +42,9 @@ def build_caption(slot: Slot) -> str:
     tags = list(dict.fromkeys(tags))[:MAX_HASHTAGS]
     parts = [
         original,
-        f"{text}\n{slot.ref_label} ({slot.text_meta['short']})",
+        f"{text}\n{ref_line(slot)}",
         slot.entry["caption"],
-        f"Day {slot.day} of {slot.total} · {slot.plan['title']}",
+        day_line(slot),
         slot.text_meta["attribution"],
         " ".join(tags),
     ]

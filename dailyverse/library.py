@@ -97,12 +97,16 @@ def balance_double_quotes(text: str) -> str:
     return "“" * missing_open + text + "”" * depth
 
 
-def lookup(ref: str, text: dict) -> str:
+def verse_keys(ref: str) -> list[str]:
+    """The index keys a reference covers: 'Mark 12:30-31' -> ['Mark 12:30', 'Mark 12:31']."""
     work, ch, a, b = parse_ref(ref)
-    units = text["verses"]
     if a is None:
-        return " ".join(units[f"{work} {n}"] for n in range(ch, (b or ch) + 1))
-    return " ".join(units[f"{work} {ch}:{v}"] for v in range(a, b + 1))
+        return [f"{work} {n}" for n in range(ch, (b or ch) + 1)]
+    return [f"{work} {ch}:{v}" for v in range(a, b + 1)]
+
+
+def lookup(ref: str, text: dict) -> str:
+    return " ".join(text["verses"][key] for key in verse_keys(ref))
 
 
 def post_text(entry: dict, text: dict) -> str:

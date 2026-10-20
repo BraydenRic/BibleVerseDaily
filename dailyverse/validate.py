@@ -10,7 +10,8 @@ import re
 from datetime import timedelta
 
 from .caption import MAX_CAPTION, MAX_HASHTAGS, build_caption
-from .library import list_accounts, load_plan, load_text, load_tradition, lookup, post_text, seasons, upcoming
+from .library import (list_accounts, load_plan, load_state, load_text, load_tradition, lookup, post_text, seasons,
+                      upcoming, verse_keys)
 
 MAX_SCREEN_WORDS = 60   # beyond this the overlay hits its smallest font size and text can overflow
 MAX_WORDS_WITH_ORIGINAL = 45        # translation + original share the screen, so each gets less
@@ -82,6 +83,24 @@ def check_style(tradition: dict) -> list[str]:
     return problems
 
 
+def check_repeats(aid: str, slots: list, history: list[dict]) -> list[str]:
+    """The same verse twice on one account: scheduled twice, or scheduled again after it went out
+    (state's history holds the last 90 posts). Overlapping ranges count: 'Mark 12:30-31' repeats 'Mark 12:31'."""
+    first: dict[str, str] = {}      # verse key -> where it first appears
+    for post in history:
+        for key in verse_keys(post["ref"]):
+            first.setdefault(key, f"posted {post['date']} ({post['plan']} day {post['day']})")
+    problems = []
+    for slot in slots:
+        keys = verse_keys(slot.entry["ref"])
+        clash = next((first[k] for k in keys if k in first), None)
+        if clash:
+            problems.append(f"{aid} {slot.plan['id']} day {slot.day} ({slot.entry['ref']}): repeats a verse already {clash}")
+        for key in keys:
+            first.setdefault(key, f"scheduled {slot.when:%Y-%m-%d} ({slot.plan['id']} day {slot.day})")
+    return problems
+
+
 def check_account(acct: dict) -> tuple[list[str], list[str]]:
     """(problems, informational notes) for one account."""
     aid = acct["id"]
@@ -139,6 +158,7 @@ def check_account(acct: dict) -> tuple[list[str], list[str]]:
         tags = [w for w in caption.split() if w.startswith("#")]
         if len(tags) > MAX_HASHTAGS:
             problems.append(f"{where}: {len(tags)} hashtags (max {MAX_HASHTAGS})")
+    problems += check_repeats(aid, slots, load_state(aid).get("history", []))
     for a, b in zip(slots, slots[1:]):
         if (b.when.date() - a.when.date()).days > 1:
             first, last = a.when.date() + timedelta(days=1), b.when.date() - timedelta(days=1)

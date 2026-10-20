@@ -19,8 +19,8 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from .library import (ROOT, advance, is_due, list_accounts, load_account, load_state, save_state, secret,
-                      start_date, upcoming)
+from .library import (ROOT, advance, in_window, is_due, list_accounts, load_account, load_state, save_state,
+                      secret, start_date, upcoming)
 
 
 def log(msg: str) -> None:
@@ -68,33 +68,42 @@ def post_account(acct: dict, force: bool) -> list[str]:
     from .render import card_for, render_reel
 
     aid = acct["id"]
-    state = load_state(aid)
     now = datetime.now(ZoneInfo(acct["timezone"]))
     today = now.date()
+
+    def posted_today() -> bool:
+        return load_state(aid).get("last_posted_date") == today.isoformat()
+
     if (start_date(acct) or today) > today:
         # Even with --force: an early day 1 would shift the whole calendar by a day.
         log(f"[{aid}] starts {start_date(acct)}; nothing posts before then (change start_date to launch earlier)")
         return []
-    if not force and not is_due(acct, now):
-        log(f"[{aid}] not due: already posted today, or {now:%H:%M %Z} is outside the window around {acct['post_time']}")
+    if posted_today():
+        # Even with --force: one post a day, so a manual run can never put out a second one.
+        log(f"[{aid}] already posted today; the next post goes out tomorrow")
         return []
+    if not force and not in_window(acct, now):
+        log(f"[{aid}] not due: {now:%H:%M %Z} is outside the window around {acct['post_time']}")
+        return []
+
+    # Read credentials before the minute-long render so a missing secret fails fast.
+    ig = Instagram(secret(acct["secrets"]["user_id"]), secret(acct["secrets"]["access_token"]))
+    catch_up(ig, acct, today)
+    if posted_today():
+        return []          # today's post was already live; catch_up recorded it
 
     slots = upcoming(acct, count=1, from_date=today)
     if not slots:
         raise RuntimeError(f"No posts left. Add the next plan to accounts/{aid}.json")
     slot = slots[0]
     if slot.when.date() != today:
-        if slot.seasonal:
-            # --force after today's post, or a gap before a pinned plan: date-pinned posts wait for their day
+        # Only a date-pinned plan can come up on a later day: the regular plans ran out before it.
+        if force:
             log(f"[{aid}] next post ({slot.plan['id']} day {slot.day}) is pinned to {slot.when:%Y-%m-%d}; not posting it early")
-            if force:
-                return []
-        if not force:
-            raise RuntimeError(f"Nothing scheduled for today: the regular plans have run out before "
-                               f"{slot.plan['id']} starts on {slot.when:%Y-%m-%d}. Add a plan to accounts/{aid}.json")
+            return []
+        raise RuntimeError(f"Nothing scheduled for today: the regular plans have run out before "
+                           f"{slot.plan['id']} starts on {slot.when:%Y-%m-%d}. Add a plan to accounts/{aid}.json")
 
-    # Read credentials before the minute-long render so a missing secret fails fast.
-    ig = Instagram(secret(acct["secrets"]["user_id"]), secret(acct["secrets"]["access_token"]))
     card = card_for(slot)
     caption = build_caption(slot)
     out = ROOT / "out" / aid / f"{slot.plan['id']}-day-{slot.day:03d}.mp4"
@@ -115,8 +124,47 @@ def post_account(acct: dict, force: bool) -> list[str]:
     if media_id is None:
         raise fetch_error
     # The post is live: record it before anything else can fail, so it's never posted twice.
-    save_state(aid, advance(acct, state, slot, media_id, today.isoformat()))
+    save_state(aid, advance(acct, load_state(aid), slot, media_id, today.isoformat()))
     return check_published(ig, aid, slot, media_id, caption)
+
+
+def catch_up(ig, acct: dict, today) -> None:
+    """Record posts that are live on Instagram but missing from state, instead of posting them again.
+
+    State normally knows every post, but it can fall behind Instagram: a run publishes and its
+    state commit never lands (a failed push, a cancelled job), or a publish goes through but its
+    reply is lost. Working from that state, the next run would post the same verse again, so
+    Instagram, the record of what's actually live, is checked first. A post is recognized by its
+    caption's reference line and day line (caption.ref_line, caption.day_line).
+    """
+    from .caption import day_line, ref_line
+    aid, tz = acct["id"], ZoneInfo(acct["timezone"])
+    # Whole lines are compared, so '1 John 1:1 (BSB)' is never taken for 'John 1:1 (BSB)'.
+    live = [(m, {line.strip() for line in (m.get("caption") or "").splitlines()}) for m in ig.recent_media()]
+    while load_state(aid).get("last_posted_date") != today.isoformat():
+        slots = upcoming(acct, count=1, from_date=today)
+        if not slots:
+            return
+        slot = slots[0]
+        same_verse = [(m, lines) for m, lines in live if ref_line(slot) in lines]
+        if not same_verse:
+            return                      # not on Instagram yet: this is the post to make
+        same_post = next((m for m, lines in same_verse if day_line(slot) in lines), None)
+        if same_post is None:
+            other = same_verse[0][0]
+            raise RuntimeError(f"{slot.ref_label} ({slot.plan['id']} day {slot.day}) is already on Instagram from "
+                               f"another post ({other.get('permalink') or other['id']}); not posting it twice. "
+                               f"Swap in another verse in traditions/{acct['tradition']}/plans/{slot.plan['id']}.json")
+        posted_on = datetime.fromisoformat(same_post["timestamp"]).astimezone(tz).date()
+        if slot.seasonal and posted_on != today:
+            # A date-pinned entry belongs to one date and the queue can't move past it, so skip
+            # the day rather than repeat the verse (this only happens if its start date was changed).
+            raise RuntimeError(f"Today's date-pinned post ({slot.plan['id']} day {slot.day}) already went out on "
+                               f"{posted_on} ({same_post.get('permalink') or same_post['id']}); not posting it twice. "
+                               f"Did its start date in accounts/{aid}.json change?")
+        log(f"::warning::[{aid}] {slot.plan['id']} day {slot.day} ({slot.ref_label}) is already on Instagram from "
+            f"{posted_on} but state didn't have it; recording it instead of posting it again")
+        save_state(aid, advance(acct, load_state(aid), slot, same_post["id"], posted_on.isoformat()))
 
 
 def check_published(ig, aid: str, slot, media_id: str, caption: str) -> list[str]:

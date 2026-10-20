@@ -31,7 +31,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
+      # The tip of main, not the commit that started the run: a run that waited behind another
+      # one, or a re-run of an old run, has to see the progress the latest post saved.
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
 
       - uses: actions/setup-python@v7.0.0
         with:

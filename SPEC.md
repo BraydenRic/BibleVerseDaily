@@ -203,9 +203,9 @@ Keys are `"<Work> <Chapter>:<Verse>"`. For texts organized only by chapter (the 
 
 `python -m dailyverse post` loops over enabled accounts. For each one:
 
-1. Skip if it already posted today or the local time is outside its window (unless `--force`).
-2. Get the next post from `upcoming`. It must be dated today: a date-pinned post is never sent early, and a day with nothing scheduled (the queue ran out before a seasonal plan) fails loudly.
-3. Read the account's secrets (so a missing one fails before rendering), render the Reel, build the caption.
+1. Skip if it already posted today (even with `--force`: one post a day) or the local time is outside its window (unless `--force`).
+2. **Check Instagram first.** Read the account's secrets (so a missing one fails before rendering), then its latest 100 posts (`GET /<IG_ID>/media`). State can fall behind what's live: a run whose progress commit never landed, a publish whose reply was lost, or a run started from an old commit. If the next post is already on Instagram (a caption with the same reference line and day line), record it instead of posting it again, and check the one after. A verse that's live from a *different* post, or today's date-pinned post already out on another day, fails loudly rather than repeating it. If Instagram can't be read, nothing posts.
+3. Get the next post from `upcoming`. It must be dated today: a date-pinned post is never sent early, and a day with nothing scheduled (the queue ran out before a seasonal plan) fails loudly. Render the Reel, build the caption.
 4. **Host the video.** Instagram's API pulls video from a public URL (direct upload is only available with Facebook Login). `hosting.py` tries two hosts, both requiring a **public repo**:
    - `raw`: force-push the file alone to a branch named `media-<account>` and return `https://raw.githubusercontent.com/<owner>/<repo>/<commit sha>/reel.mp4`. The branch is overwritten each day so old videos don't accumulate.
    - `release`: the fallback when Instagram can't fetch the raw URL (GitHub rate-limits anonymous raw downloads). The video becomes the only asset of a pre-release tagged `reel-<account>`.
@@ -240,6 +240,7 @@ python -m dailyverse new-tradition ID [--account ID]
 - on-screen text fits (60 words max),
 - captions are under 2,200 characters, with at most 5 hashtags,
 - seasonal plans don't overlap and aren't also in the queue,
+- no verse goes out twice: none is scheduled twice, and none repeats one from the last 90 posts (overlapping ranges count),
 - no day is left without a post.
 
 It ends by printing how far ahead each account is scheduled. Problems on disabled accounts are only warnings.
@@ -251,6 +252,7 @@ It ends by printing how far ahead each account is scheduled. Problems on disable
 ### `daily-post.yml`
 
 - Cron `50 * * * *`: hourly. Each account posts only inside its own window, in its own time zone (daylight saving included), and once a day. So one schedule serves any number of accounts in any time zones, and with a 30/120-minute window around noon there are three runs inside it every day: two automatic retries.
+- Checks out the tip of `main`, not the commit that started the run, so a run that waited behind another one (or a re-run of an old run) sees the progress the latest post saved.
 - First step: `python -m dailyverse due` on bare Python. Most runs stop there, in seconds. Only when something is due does it install ffmpeg and the pinned requirements and run `python -m dailyverse post`. Each account's secrets are passed to that step by name (`IG_USER_ID_X: ${{ secrets.IG_USER_ID_X }}`), never the whole secrets map: that keeps access minimal, and GitHub blocks workflows that hand over every secret (`toJSON(secrets)`) as possibly malicious. A test checks that every account's secrets are passed in both daily-post.yml and refresh-token.yml.
 - Commits `state/` when it changed (pulling first in case of a concurrent push), then starts the Preview workflow. GitHub disables scheduled workflows in a public repo after 60 days without a commit; the daily commit prevents that, and if nothing has been committed for 30 days the step writes `state/heartbeat.txt` as a keep-alive commit.
 - Manual run inputs: `account` and `force` (post right now), passed through environment variables, not interpolated into the script.

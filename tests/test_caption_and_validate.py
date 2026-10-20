@@ -4,6 +4,8 @@ from dailyverse import validate
 from dailyverse.caption import MAX_CAPTION, MAX_HASHTAGS, build_caption, overlay_text
 from dailyverse.library import ROOT as REAL_ROOT, load_account, load_text, upcoming
 
+from .conftest import plan, write
+
 D0 = date(2026, 11, 2)
 
 
@@ -60,6 +62,20 @@ def test_validate_rejects_a_plan_both_pinned_and_queued(world):
     world.account(seasonal=[{"plan": "01-a", "start": "2099-01-01"}])
     problems, _ = validate.check_account(load_account("acct"))
     assert any("both date-pinned" in p for p in problems)
+
+
+def test_validate_flags_a_verse_scheduled_twice(world):
+    # 'Book 1:2-3' overlaps verses 01-a already posts on its days 2 and 3
+    write(world.root / "traditions" / "trad" / "plans" / "03-c.json", plan("03-c", ["Book 1:2-3"]))
+    world.account(plans=["01-a", "03-c"])
+    problems, _ = validate.check_account(load_account("acct"))
+    assert any("03-c day 1 (Book 1:2-3): repeats a verse already scheduled" in p for p in problems), problems
+
+
+def test_validate_flags_a_verse_that_already_went_out(world):
+    world.state(history=[{"plan": "old", "day": 1, "ref": "Book 1:4", "date": "2026-09-01", "media_id": "m"}])
+    problems, _ = validate.check_account(load_account("acct"))
+    assert any("02-b day 1 (Book 1:4): repeats a verse already posted 2026-09-01" in p for p in problems), problems
 
 
 def test_validate_reports_the_schedule(world):

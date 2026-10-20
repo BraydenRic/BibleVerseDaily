@@ -76,6 +76,19 @@ class Instagram:
     def media(self, media_id: str, fields: str = "caption,permalink") -> dict:
         return self._call("GET", media_id, fields=fields)
 
+    def recent_media(self, count: int = 100) -> list[dict]:
+        """The account's latest posts, newest first, each with id, caption, timestamp and permalink."""
+        posts, params = [], {"fields": "id,caption,timestamp,permalink", "limit": 50}
+        while len(posts) < count:
+            page = self._call("GET", f"{self.user_id}/media", **params)
+            posts += page.get("data", [])
+            paging = page.get("paging", {})
+            after = paging.get("cursors", {}).get("after")
+            if not paging.get("next") or not after:
+                break
+            params["after"] = after
+        return posts[:count]
+
 
 def refresh_token(token: str) -> tuple[str, int]:
     """Swap a long-lived token (at least 24h old) for a new 60-day one."""

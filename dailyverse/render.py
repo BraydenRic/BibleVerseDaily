@@ -397,13 +397,19 @@ def _seconds(card: Card) -> float:
     return min(30.0, duration_for(card.text) + extra)
 
 
+def cover_time(card: Card) -> float:
+    """The moment used as the Reel's cover in the profile grid, and for preview stills: midway,
+    with the text fully in. (Instagram's default is the first frame, which is a fade from black.)"""
+    return _seconds(card) / 2
+
+
 def render_still(card: Card, out_jpg: Path) -> Path:
     """Fast preview: one background frame plus the text overlay, no video or audio."""
     out_jpg.parent.mkdir(parents=True, exist_ok=True)
     overlay = out_jpg.with_suffix(".overlay.png")
     make_overlay(card, overlay)
     bg = Background(card.seed, card.palettes)
-    frame = Image.fromarray(bg.frame(_seconds(card) / 2)).resize((W, H), Image.BICUBIC).convert("RGBA")
+    frame = Image.fromarray(bg.frame(cover_time(card))).resize((W, H), Image.BICUBIC).convert("RGBA")
     Image.alpha_composite(frame, Image.open(overlay)).convert("RGB").save(out_jpg, quality=88)
     overlay.unlink()
     return out_jpg

@@ -65,7 +65,7 @@ def post_account(acct: dict, force: bool) -> list[str]:
     from .caption import build_caption
     from .hosting import HOSTS, host_video
     from .instagram import Instagram, MediaFetchError
-    from .render import card_for, render_reel
+    from .render import card_for, cover_time, render_reel
 
     aid = acct["id"]
     now = datetime.now(ZoneInfo(acct["timezone"]))
@@ -116,7 +116,7 @@ def post_account(acct: dict, force: bool) -> list[str]:
         url = host_video(out, aid, method)
         log(f"[{aid}] hosted ({method}) at {url}")
         try:
-            media_id = ig.publish_reel(url, caption, log=log)
+            media_id = ig.publish_reel(url, caption, log=log, cover_ms=int(cover_time(card) * 1000))
             break
         except MediaFetchError as e:
             fetch_error = e

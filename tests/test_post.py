@@ -34,10 +34,11 @@ class FakeInstagram:
         self.live_caption = None
         FakeInstagram.instances.append(self)
 
-    def publish_reel(self, url, caption, log=print):
+    def publish_reel(self, url, caption, log=print, cover_ms=0):
         host = url.split(":", 1)[0]
         if host in self.fail_hosts:
             raise instagram.MediaFetchError(f"Media download has failed for {url}")
+        self.cover_ms = cover_ms
         self.published.append((url, caption))
         media_id = f"media-{len(self.published)}"
         FakeInstagram.on_instagram.insert(0, live_post(caption, media_id))
@@ -254,3 +255,12 @@ def test_nothing_posts_when_instagram_cant_say_what_is_already_live(world, fakes
     monkeypatch.setattr(FakeInstagram, "recent_media", unavailable)
     assert cli.main(["post", "--force"]) == 1
     assert published() == []
+
+
+def test_the_grid_cover_is_a_frame_with_the_verse_on_it(world, fakes):
+    # Instagram's default cover is the first frame, which is a fade from black.
+    slot = upcoming(load_account("acct"), count=1)[0]
+    card = render.card_for(slot)
+    assert cli.main(["post", "--force"]) == 0
+    assert ig().cover_ms == int(render.cover_time(card) * 1000)
+    assert 2300 < ig().cover_ms < (render._seconds(card) - 1.4) * 1000   # after the text fades in, before it fades out

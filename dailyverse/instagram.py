@@ -55,9 +55,10 @@ class Instagram:
             raise error(f"{method} {path} -> {r.status_code}: {r.text}")
         return r.json()
 
-    def publish_reel(self, video_url: str, caption: str, log=print) -> str:
-        container = self._call("POST", f"{self.user_id}/media", media_type="REELS",
-                               video_url=video_url, caption=caption, share_to_feed=True)["id"]
+    def publish_reel(self, video_url: str, caption: str, log=print, cover_ms: int = 0) -> str:
+        """`cover_ms` picks the frame shown as the Reel's cover in the profile grid."""
+        container = self._call("POST", f"{self.user_id}/media", media_type="REELS", video_url=video_url,
+                               caption=caption, share_to_feed=True, thumb_offset=cover_ms)["id"]
         log(f"Container {container} created; waiting for Instagram to process the video")
         for _ in range(20):                     # about 10 minutes
             time.sleep(30)

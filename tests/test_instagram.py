@@ -39,3 +39,20 @@ def test_recent_media_of_a_new_account_is_empty(monkeypatch):
     call, _ = pages_of({"data": []})
     monkeypatch.setattr(Instagram, "_call", call)
     assert Instagram("123", "tok").recent_media() == []
+
+
+def test_publish_reel_sends_the_cover_frame(monkeypatch):
+    calls = []
+
+    def call(self, method, path, **params):
+        calls.append((method, path, params))
+        if path.endswith("/media"):
+            return {"id": "container-1"}
+        if path.endswith("/media_publish"):
+            return {"id": "media-1"}
+        return {"status_code": "FINISHED"}
+
+    monkeypatch.setattr(Instagram, "_call", call)
+    monkeypatch.setattr("dailyverse.instagram.time.sleep", lambda s: None)
+    assert Instagram("123", "tok").publish_reel("https://x/reel.mp4", "caption", log=lambda m: None, cover_ms=7000) == "media-1"
+    assert calls[0][2]["thumb_offset"] == 7000 and calls[0][2]["media_type"] == "REELS"

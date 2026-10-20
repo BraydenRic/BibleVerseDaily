@@ -1,6 +1,6 @@
 {
   "id": "hinduism",
-  "enabled": false,
+  "enabled": true,
   "tradition": "hinduism",
   "start_date": "2026-10-20",
   "plans": [

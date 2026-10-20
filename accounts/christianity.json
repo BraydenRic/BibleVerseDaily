@@ -1,6 +1,6 @@
 {
   "id": "christianity",
-  "enabled": false,
+  "enabled": true,
   "tradition": "christianity",
   "start_date": "2026-10-20",
   "plans": [

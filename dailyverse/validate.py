@@ -15,7 +15,9 @@ from .library import (list_accounts, load_plan, load_state, load_text, load_trad
 
 MAX_SCREEN_WORDS = 60   # beyond this the overlay hits its smallest font size and text can overflow
 MAX_WORDS_WITH_ORIGINAL = 45        # translation + original share the screen, so each gets less
-AUDIO_STYLES = ("ambient", "nature", "silent")   # mirrors render.AUDIO_STYLES (render needs numpy)
+# These mirror render.AUDIO_STYLES and render.SCENES (render needs numpy); a test keeps them equal.
+AUDIO_STYLES = ("ambient", "drone", "nature", "silent")
+SCENES = ("glow", "sunrise", "night", "dusk")
 
 
 def _words(s: str) -> list[str]:
@@ -69,6 +71,8 @@ def check_style(tradition: dict) -> list[str]:
     style, problems = tradition.get("style", {}), []
     if style.get("audio", "ambient") not in AUDIO_STYLES:
         problems.append(f"style.audio must be one of {AUDIO_STYLES}")
+    if style.get("scene", "glow") not in SCENES:
+        problems.append(f"style.scene must be one of {SCENES}")
     for palette in style.get("palettes", []):
         if len(palette) != 3 or len(palette[2]) < 1:
             problems.append("each style.palettes entry is [top color, bottom color, [glow colors]]")

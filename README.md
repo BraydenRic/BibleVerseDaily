@@ -6,7 +6,7 @@ Posts one scripture Reel a day to Instagram at noon: a calm moving background, t
 |---|---|---|---|---|---|
 | `christianity` | Bible (Berean Standard Bible) | English | ambient music | Los Angeles | live from Oct 20, 2026 |
 | `islam` | Quran (Arabic + Pickthall's English, "translation of the meaning") | Arabic, then English | none | London | live from Oct 20, 2026 |
-| `hinduism` | Bhagavad Gita (Sanskrit + Besant's English) | Devanagari, then English | ambient music | Kolkata | live from Oct 20, 2026 |
+| `hinduism` | Bhagavad Gita (Sanskrit + Besant's English) | Devanagari, then English | tanpura drone | Kolkata | live from Oct 20, 2026 |
 
 Each has 365 days queued. Advent ends on Christmas, John ends on Easter, Ramadan reads through the Quran in 30 days, and the Gita ends a reading on Gita Jayanti. Full details and the design: **[SPEC.md](SPEC.md)**. Licenses: **[CREDITS.md](CREDITS.md)**.
 

@@ -21,14 +21,8 @@
     }
   },
   "style": {
+    "scene": "night",
     "audio": "silent",
-    "palettes": [
-      ["#0b1f1c", "#2e6b5e", ["#e8d29a", "#7fc4b0", "#cfe7dc"]],
-      ["#0d1630", "#34507a", ["#f0d48a", "#9bb6e0", "#d9e4f5"]],
-      ["#1d1726", "#8f6550", ["#f2c98a", "#e3a77d", "#8f7bb0"]],
-      ["#08232a", "#2a6f78", ["#9fd8d2", "#e9d9a6", "#6fb2c4"]],
-      ["#17201a", "#5f7552", ["#e6dcb0", "#a9c69a", "#d8c690"]]
-    ],
     "original": {
       "text": "arabic",
       "font": "AmiriQuran-Regular.ttf",

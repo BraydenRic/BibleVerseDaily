@@ -98,3 +98,48 @@ def test_audio_is_deterministic(tmp_path):
     make_audio(42, 2.0, a, "nature")
     make_audio(42, 2.0, b, "nature")
     assert a.read_bytes() == b.read_bytes()
+
+
+def test_validate_knows_every_render_option():
+    from dailyverse import render
+    assert validate.AUDIO_STYLES == render.AUDIO_STYLES
+    assert validate.SCENES == render.SCENES
+
+
+def test_an_unknown_scene_is_reported(with_original):
+    t = with_original.root / "traditions" / "trad" / "tradition.json"
+    trad = json.loads(t.read_text())
+    trad["style"]["scene"] = "fireworks"
+    write(t, trad)
+    problems, _ = validate.check_account(load_account("acct"))
+    assert any("style.scene" in p for p in problems)
+
+
+@pytest.mark.parametrize("scene", ["glow", "sunrise", "night", "dusk"])
+def test_scenes_draw_deterministic_frames(with_original, scene):
+    import numpy as np
+    from dataclasses import replace
+    from dailyverse.render import H, W, BG_SCALE, scene_for
+    card = replace(card_for(first_slot()), scene=scene, palettes=None)
+    a, b = scene_for(card).frame(3.2), scene_for(card).frame(3.2)
+    assert a.shape == (H // BG_SCALE, W // BG_SCALE, 3) and a.dtype == np.uint8
+    assert np.array_equal(a, b)                                   # previews match what's posted
+    assert not np.array_equal(a, scene_for(card).frame(9.0))      # and it moves
+
+
+@pytest.mark.parametrize("scene", ["glow", "sunrise", "night", "dusk"])
+def test_the_verse_is_revealed_in_order_and_complete_at_the_cover(with_original, scene):
+    from dataclasses import replace
+    from dailyverse.render import BOX_BOTTOM, FADE_IN, MAX_SECONDS, MIN_SECONDS, compose
+    card = replace(card_for(first_slot()), scene=scene)
+    pieces, tl = compose(card)
+    entries = [p.t_in for p in pieces]
+    assert entries == sorted(entries)                             # header, original, English, emblem, reference
+    assert all(p.t_in + FADE_IN <= tl.cover for p in pieces)       # the grid cover shows everything
+    assert MIN_SECONDS <= tl.duration <= MAX_SECONDS and tl.cover < tl.fade_out
+    assert all(p.y + p.image.height <= BOX_BOTTOM + 60 for p in pieces)   # clear of Instagram's caption area
+
+
+def test_the_header_names_the_plan_and_day(with_original):
+    card = card_for(first_slot())
+    assert card.header == "Plan A · Day 1 of 3"

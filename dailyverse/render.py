@@ -1,13 +1,20 @@
-"""Render a post as a calm vertical Reel: drifting background, text overlay, original audio.
+"""Render a post as a calm vertical Reel: a moving scene, the verse revealed line by line, original audio.
 
 Everything here is generated from code, so there are no stock-footage or music licenses to track.
-A tradition can choose its own palettes and audio style, and show the original-language text
-(Arabic, Devanagari, ...) above the translation; see `style` in tradition.json.
+
+Each tradition picks a scene (`style.scene` in tradition.json) that matches its profile picture: an
+emblem near the top (a sun, a crescent moon, a lotus) and a slowly moving background around it (light
+rays with drifting dust, twinkling stars, rising embers). Over it go a header naming the plan and day,
+the verse (the original language first, for traditions that show it) appearing a line at a time at
+reading pace, a small copy of the emblem, and the reference. Text stays in the band Instagram leaves
+clear: below the Reels header, above the caption and buttons, and inside the 4:5 feed crop and the
+3:4 profile-grid crop.
 """
 from __future__ import annotations
 
 import math
 import subprocess
+import tempfile
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,12 +26,13 @@ ROOT = Path(__file__).resolve().parent.parent
 FONTS = ROOT / "assets" / "fonts"
 
 W, H = 1080, 1920          # 9:16 Reel
-BG_SCALE = 5               # background is drawn at 1/5 size and upscaled (smooth gradients upscale cleanly)
+BG_SCALE = 4               # backgrounds are all soft light, so they're drawn at 1/4 size and upscaled
 FPS = 30
 SR = 44100
 CREAM = (255, 251, 244)
 
-# Calm palettes: (top color, bottom color, glow colors)
+# The original look, kept as the "glow" scene for traditions that don't pick one:
+# (top color, bottom color, glow colors)
 PALETTES = [
     ("#141c33", "#a8746a", ["#f3c98b", "#e79a8c", "#7d6aa6"]),   # dawn
     ("#0c2233", "#2f6d78", ["#8fd3d1", "#5aa1c2", "#c9e6e4"]),   # ocean
@@ -32,7 +40,36 @@ PALETTES = [
     ("#1f1834", "#6f6194", ["#e6b3cc", "#b4a4e0", "#f1d6e3"]),   # lavender
     ("#1b1a2c", "#8c5a6e", ["#f2b38f", "#d27f8f", "#6c7fb8"]),   # dusk
 ]
-AUDIO_STYLES = ("ambient", "nature", "silent")
+# Per scene: (sky top, sky bottom, [main light, particles, highlight]); one per day in rotation.
+SCENE_PALETTES = {
+    "sunrise": [("#141634", "#9a5a4a", ["#ffcf85", "#ffe9c4", "#fff0cc"]),
+                ("#1a1838", "#a8684c", ["#ffd690", "#ffeccc", "#fff3d6"]),
+                ("#102037", "#80606e", ["#ffdca0", "#fff0d6", "#fff6e2"])],
+    "night": [("#050b1c", "#123046", ["#f3d98f", "#dfe9f7", "#eef3fa"]),
+              ("#04120f", "#154a40", ["#efd893", "#e2f3ec", "#eef8f3"]),
+              ("#0a0a1d", "#2a2d5a", ["#f0d48e", "#e6e4f7", "#f1effa"])],
+    "dusk": [("#170c1c", "#8a3d27", ["#ffb35c", "#ffb066", "#ffe0a8"]),
+             ("#1b0d16", "#9c4f2c", ["#ffbf6a", "#ffb870", "#ffe6b8"]),
+             ("#120e1e", "#6e3550", ["#ffae66", "#ffa86a", "#ffd9b0"])],
+}
+SCENES = ("glow", *SCENE_PALETTES)
+AUDIO_STYLES = ("ambient", "drone", "nature", "silent")
+
+# Layout. Full-screen Reels cover about the top 220px and bottom 400px; the feed shows a 4:5 crop
+# (y 285 to 1635) and the profile grid a 3:4 crop (y 240 to 1680).
+EMBLEM_Y, EMBLEM_R = 345, 56          # centre and radius of the scene's emblem
+HEADER_Y = 428                        # top of the header
+BOX_TOP, BOX_BOTTOM = 530, 1530       # the verse, the small emblem and the reference are centred here
+TEXT_W = 860
+DIVIDER_H = 96                        # from the last verse line to the reference
+REF_H = 40
+
+# Timing (seconds)
+T_HEADER, T_FIRST = 0.3, 1.0
+FADE_IN, FADE_OUT = 0.9, 1.0
+ORIGINAL_STEP = 0.55                  # the original appears at a steady pace: it's seen more than read
+READ_PACE, MIN_STEP = 0.27, 0.75      # per English word, before the next line comes in
+MIN_SECONDS, MAX_SECONDS = 12.0, 30.0
 
 
 @dataclass
@@ -40,15 +77,17 @@ class Card:
     """Everything that ends up on screen and in the soundtrack for one post."""
     text: str                       # the translation shown on screen
     ref: str                        # reader-facing reference, e.g. "Psalm 23:1"
-    label: str                      # small top label, e.g. "Day 3 of 40"
+    label: str                      # "Day 3 of 40"; the header falls back to it
     seed: int                       # makes background and audio deterministic per post
     original: str | None = None     # original-language text shown above the translation
     original_font: str = "Lora-Variable.ttf"
     original_direction: str = "ltr"         # "rtl" for Arabic and Hebrew
     original_language: str | None = None    # e.g. "ar", "sa": guides shaping
     original_line_height: float = 1.85      # Arabic needs room for vowel marks; Devanagari less
-    palettes: list | None = None    # overrides PALETTES
+    palettes: list | None = None    # overrides the scene's palettes
     audio: str = "ambient"          # one of AUDIO_STYLES
+    header: str = ""                # "Gospel of Mark · Day 3 of 40"
+    scene: str = "glow"             # one of SCENES
 
 
 def card_for(slot) -> Card:
@@ -57,6 +96,7 @@ def card_for(slot) -> Card:
     body, ref, label = overlay_text(slot)
     style = slot.tradition.get("style", {})
     orig = style.get("original") or {}
+    title = slot.plan["title"].split(":")[0].strip()     # "Ramadan: Through the Quran..." -> "Ramadan"
     return Card(
         text=body, ref=ref, label=label, seed=slot.seed,
         original=original_text(slot) if orig.get("on_screen", True) else None,
@@ -66,17 +106,18 @@ def card_for(slot) -> Card:
         original_line_height=orig.get("line_height", 1.85),
         palettes=style.get("palettes"),
         audio=style.get("audio", "ambient"),
+        header=f"{title} · Day {slot.day} of {slot.total}",
+        scene=style.get("scene", "glow"),
     )
 
 
-# ---------------------------------------------------------------- timing
-
 def duration_for(text: str) -> float:
+    """Rough reading time; kept for callers that only have the text. Reels use `timeline`."""
     words = len(text.split())
-    return float(min(30.0, max(12.0, 8.0 + words * 0.33)))
+    return float(min(MAX_SECONDS, max(MIN_SECONDS, 8.0 + words * 0.33)))
 
 
-# ---------------------------------------------------------------- text overlay
+# ---------------------------------------------------------------- text
 
 def _font(name: str, size: int, weight: str | None = None) -> ImageFont.FreeTypeFont:
     f = ImageFont.truetype(str(FONTS / name), size)
@@ -118,86 +159,281 @@ def _shaping(card: Card) -> dict:
     return args
 
 
+def _spaced(text: str) -> str:
+    return " ".join(text.upper())       # letter-spaced capitals for labels
+
+
 def layout(card: Card) -> dict:
-    """Pick the largest type size at which the text block fits its box.
+    """Pick the largest type size at which the verse fits its band.
 
     With an original text, both blocks scale together: the original a little larger (Arabic and
     Devanagari read small at the same point size) with taller lines for vowel marks. `fits` is
     False if even the smallest size overflows; tests check every scheduled post against it.
     """
     draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    max_w = 860
-    max_h = 1100 if card.original else 980
+    room = BOX_BOTTOM - BOX_TOP - DIVIDER_H - REF_H
     shaping = _shaping(card) if card.original else {}
-    for size in range(78, 28, -2):
+    for size in range(78, 26, -2):
         L = {"size": size, "font": _font("Lora-Variable.ttf", size, "Regular"), "shaping": shaping}
-        L["lines"] = _wrap(draw, card.text, L["font"], max_w)
+        L["lines"] = _wrap(draw, card.text, L["font"], TEXT_W)
         L["line_h"] = int(size * 1.42)
         L["block_h"] = len(L["lines"]) * L["line_h"]
         if card.original:
             o_size = int(size * 1.12)
             L["o_font"] = _font(card.original_font, o_size)
-            L["o_lines"] = _wrap(draw, card.original, L["o_font"], max_w, **shaping)
+            L["o_lines"] = _wrap(draw, card.original, L["o_font"], TEXT_W, **shaping)
             L["o_line_h"] = int(o_size * card.original_line_height)
-            L["o_gap"] = int(size * 1.4)
+            L["o_gap"] = int(size * 1.2)
             L["block_h"] += len(L["o_lines"]) * L["o_line_h"] + L["o_gap"]
-        L["fits"] = L["block_h"] <= max_h
+        L["fits"] = L["block_h"] <= room
         if L["fits"]:
             break
     return L
 
 
-def make_overlay(card: Card, path: Path) -> None:
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+def _header(card: Card, draw: ImageDraw.ImageDraw) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    """One letter-spaced line if it fits ("GOSPEL OF MARK · DAY 3 OF 40"), else plan over day."""
+    text = card.header or card.label
+    for size in (29, 27):
+        font = _font("Poppins-Regular.ttf", size)
+        if draw.textlength(_spaced(text), font=font) <= TEXT_W:
+            return font, [_spaced(text)]
+    font = _font("Poppins-Regular.ttf", 26)
+    return font, [_spaced(part) for part in text.split(" · ", 1)]
+
+
+@dataclass
+class Line:
+    """One piece of text on screen and when it appears."""
+    text: str
+    font: ImageFont.FreeTypeFont
+    y: int
+    t_in: float
+    fill: tuple
+    shaping: dict
+
+
+@dataclass
+class Timeline:
+    lines: list[Line]          # header, original, English and reference, in order of appearance
+    ornament_y: int            # centre of the small emblem between the verse and the reference
+    ornament_t: float
+    duration: float
+    cover: float               # a moment with everything on screen (grid cover, preview still)
+    fade_out: float            # when the text starts to fade (the scene stays, so the loop is smooth)
+
+
+def timeline(card: Card) -> Timeline:
+    """Where every line goes and when it appears, and how long the Reel runs."""
+    draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     L = layout(card)
-    font, lines, line_h, block_h, shaping = L["font"], L["lines"], L["line_h"], L["block_h"], L["shaping"]
-    if card.original:
-        o_font, o_lines, o_line_h, o_gap = L["o_font"], L["o_lines"], L["o_line_h"], L["o_gap"]
+    lines: list[Line] = []
+    h_font, h_lines = _header(card, draw)
+    for i, text in enumerate(h_lines):
+        lines.append(Line(text, h_font, HEADER_Y + i * 38, T_HEADER, CREAM + (205,), {}))
 
-    ref_font = _font("Poppins-Medium.ttf", 34)
-    label_font = _font("Poppins-Regular.ttf", 28)
-    gap = 70
-    total_h = block_h + gap + 40
-    y = (H - total_h) // 2 - 30
-
-    text_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    td = ImageDraw.Draw(text_layer)
+    total = L["block_h"] + DIVIDER_H + REF_H
+    y = BOX_TOP + max(0, (BOX_BOTTOM - BOX_TOP - total) // 2)
+    t = T_FIRST
+    for text in L.get("o_lines", []):
+        lines.append(Line(text, L["o_font"], y, t, CREAM + (255,), L["shaping"]))
+        y += L["o_line_h"]
+        t += ORIGINAL_STEP
     if card.original:
-        for ln in o_lines:
-            lw = td.textlength(ln, font=o_font, **shaping)
-            td.text(((W - lw) / 2, y), ln, font=o_font, fill=CREAM + (255,), **shaping)
-            y += o_line_h
-        y += o_gap
-    for ln in lines:
-        lw = td.textlength(ln, font=font)
+        y += L["o_gap"]
+        t += 0.35
+    for text in L["lines"]:
         # the translation steps back slightly when it sits under the original
-        td.text(((W - lw) / 2, y), ln, font=font, fill=CREAM + (230 if card.original else 255,))
-        y += line_h
+        lines.append(Line(text, L["font"], y, t, CREAM + (232 if card.original else 255,), {}))
+        y += L["line_h"]
+        t += max(MIN_STEP, READ_PACE * len(text.split()))
+    ornament_y, ornament_t = y + DIVIDER_H // 2 - 8, t
+    lines.append(Line(_spaced(card.ref), _font("Poppins-Medium.ttf", 34), y + DIVIDER_H - 8, t + 0.3,
+                      CREAM + (220,), {}))
 
-    # thin divider, then the reference
-    y += gap // 2
-    td.line([(W / 2 - 36, y), (W / 2 + 36, y)], fill=CREAM + (150,), width=2)
-    y += gap // 2 - 6
-    ref_up = " ".join(card.ref.upper())  # letter-spaced
-    rw = td.textlength(ref_up, font=ref_font)
-    td.text(((W - rw) / 2, y), ref_up, font=ref_font, fill=CREAM + (215,))
+    # Long passages reveal faster so the whole thing fits in 30 seconds with time to finish reading.
+    t_ref = lines[-1].t_in
+    latest_ref = MAX_SECONDS - FADE_OUT - 4.0 - FADE_IN
+    if t_ref > latest_ref:
+        k = (latest_ref - T_FIRST) / (t_ref - T_FIRST)
+        for ln in lines:
+            if ln.t_in >= T_FIRST:
+                ln.t_in = T_FIRST + (ln.t_in - T_FIRST) * k
+        ornament_t = T_FIRST + (ornament_t - T_FIRST) * k
+        t_ref = lines[-1].t_in
+    revealed = t_ref + FADE_IN
+    hold = min(7.0, max(4.0, 3.0 + 0.06 * len(card.text.split())))
+    duration = min(MAX_SECONDS, max(MIN_SECONDS, revealed + hold + FADE_OUT))
+    fade_out = duration - FADE_OUT - 0.1
+    cover = min(revealed + 0.6, fade_out - 0.5)
+    return Timeline(lines, ornament_y, ornament_t, duration, cover, fade_out)
 
-    # small label near the top
-    lab = " ".join(card.label.upper())
-    lw = td.textlength(lab, font=label_font)
-    td.text(((W - lw) / 2, 250), lab, font=label_font, fill=CREAM + (150,))
 
-    # soft shadow so text stays readable on any palette
-    shadow = text_layer.split()[3].filter(ImageFilter.GaussianBlur(14))
-    shadow = shadow.point(lambda a: int(a * 0.55))
-    dark = Image.new("RGBA", (W, H), (10, 8, 20, 0))
-    dark.putalpha(shadow)
-    img = Image.alpha_composite(img, dark)
-    img = Image.alpha_composite(img, text_layer)
+def _seconds(card: Card) -> float:
+    return timeline(card).duration
+
+
+def cover_time(card: Card) -> float:
+    """The moment used as the Reel's cover in the profile grid, and for preview stills: once the
+    whole verse is on screen. (Instagram's default is the first frame, before any text appears.)"""
+    return timeline(card).cover
+
+
+# ---------------------------------------------------------------- pieces drawn on top of the scene
+
+PAD = 44                    # room around each piece for its shadow
+
+
+def _with_shadow(img: Image.Image, blur: float = 14, strength: float = 0.55) -> Image.Image:
+    """A soft dark halo under light text and shapes, so they read on any part of the scene."""
+    alpha = img.split()[3].filter(ImageFilter.GaussianBlur(blur)).point(lambda a: int(a * strength))
+    shadow = Image.new("RGBA", img.size, (10, 8, 20, 0))
+    shadow.putalpha(alpha)
+    return Image.alpha_composite(shadow, img)
+
+
+@dataclass
+class Piece:
+    image: Image.Image      # RGBA, cropped to the piece and its shadow
+    x: int
+    y: int
+    t_in: float
+
+
+def _text_piece(line: Line) -> Piece:
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    advance = probe.textlength(line.text, font=line.font, **line.shaping)
+    left, top, right, bottom = probe.textbbox((0, 0), line.text, font=line.font, **line.shaping)
+    img = Image.new("RGBA", (int(right - left) + 2 * PAD, int(bottom - top) + 2 * PAD), CREAM + (0,))
+    ImageDraw.Draw(img).text((PAD - left, PAD - top), line.text, font=line.font, fill=line.fill, **line.shaping)
+    origin_x = (W - advance) / 2            # centred by advance width, like any centred line of type
+    return Piece(_with_shadow(img), round(origin_x + left - PAD), round(line.y + top - PAD), line.t_in)
+
+
+def _petal(cx: float, cy: float, angle: float, length: float, half_w: float) -> list[tuple[float, float]]:
+    """An almond-shaped lotus petal from its base, rotated `angle` degrees from upright."""
+    a = math.radians(angle)
+    left, right = [], []
+    for i in range(41):
+        t = i / 40
+        w = half_w * math.sin(math.pi * t ** 0.8) ** 0.85
+        for side, out in ((-1, left), (1, right)):
+            x, y = side * w, length * t
+            out.append((cx + x * math.cos(a) + y * math.sin(a), cy + x * math.sin(a) - y * math.cos(a)))
+    return left + right[::-1]
+
+
+def _star_points(cx: float, cy: float, r: float, points: int = 8) -> list[tuple[float, float]]:
+    """The Islamic eight-pointed star (two overlapping squares) as one outline."""
+    inner = r * math.cos(math.radians(45)) / math.cos(math.radians(22.5))
+    return [(cx + (r if i % 2 == 0 else inner) * math.cos(math.radians(-90 + i * 180 / points)),
+             cy + (r if i % 2 == 0 else inner) * math.sin(math.radians(-90 + i * 180 / points)))
+            for i in range(points * 2)]
+
+
+def _emblem(scene: str, r: float) -> Image.Image | None:
+    """The scene's symbol at radius `r` px, matching the account's profile picture."""
+    if scene not in SCENE_PALETTES:
+        return None
+    ss = 4                                   # drawn at 4x and scaled down, for clean edges
+    R, size = r * ss, int(2.6 * r * ss)
+    c = size / 2
+    img = Image.new("RGBA", (size, size), CREAM + (0,))
+    d = ImageDraw.Draw(img)
+    fill = CREAM + (255,)
+    if scene == "sunrise":
+        d.ellipse([c - 0.4 * R, c - 0.4 * R, c + 0.4 * R, c + 0.4 * R], fill=fill)
+        for i in range(16):
+            a = 2 * math.pi * i / 16
+            r0, r1, half = 0.56 * R, (1.0 if i % 2 == 0 else 0.8) * R, 0.065 * R
+            px, py = -math.sin(a), math.cos(a)
+            d.polygon([(c + r0 * math.cos(a) + half * px, c + r0 * math.sin(a) + half * py),
+                       (c + r1 * math.cos(a), c + r1 * math.sin(a)),
+                       (c + r0 * math.cos(a) - half * px, c + r0 * math.sin(a) - half * py)], fill=fill)
+    elif scene == "night":
+        d.ellipse([c - 0.18 * R - 0.78 * R, c - 0.78 * R, c - 0.18 * R + 0.78 * R, c + 0.78 * R], fill=fill)
+        cx, cy, cr = c + 0.12 * R, c - 0.17 * R, 0.68 * R
+        d.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], fill=CREAM + (0,))
+        d.polygon(_star_points(c + 0.62 * R, c - 0.42 * R, 0.24 * R), fill=fill)
+    elif scene == "dusk":
+        edge = (122, 63, 52, 150)
+        base_y = c + 0.62 * R
+        for layer in ([(-66, 0.7, 0.2), (66, 0.7, 0.2)], [(-38, 0.95, 0.22), (38, 0.95, 0.22)],
+                      [(-16, 1.08, 0.22), (16, 1.08, 0.22)], [(0, 1.18, 0.24)]):
+            for ang, ln, hw in layer:
+                pts = _petal(c, base_y, ang, ln * R, hw * R)
+                d.polygon(pts, fill=fill)
+                d.line(pts + [pts[0]], fill=edge, width=max(2, int(0.035 * R)), joint="curve")
+    return img.resize((size // ss, size // ss), Image.LANCZOS)
+
+
+def _ornament(card: Card, y: int, t_in: float) -> Piece:
+    """The small emblem between the verse and the reference (a short rule for the plain scene)."""
+    small = _emblem(card.scene, 23)
+    if small is None:
+        small = Image.new("RGBA", (72, 4), CREAM + (150,))
+    img = Image.new("RGBA", (small.width + 2 * PAD, small.height + 2 * PAD), CREAM + (0,))
+    img.alpha_composite(small, (PAD, PAD))
+    img = _with_shadow(img, blur=8, strength=0.5)
+    return Piece(img, (W - img.width) // 2, y - img.height // 2, t_in)
+
+
+def compose(card: Card) -> tuple[list[Piece], Timeline]:
+    """Every piece of text (and the small emblem) as an image with its place and entry time."""
+    tl = timeline(card)
+    pieces = [_text_piece(line) for line in tl.lines]
+    pieces.insert(len(pieces) - 1, _ornament(card, tl.ornament_y, tl.ornament_t))
+    return pieces, tl
+
+
+def _lattice() -> Image.Image:
+    """A faint field of eight-pointed stars, the classic Islamic geometric tiling, strongest at the
+    edges and fading out behind the text."""
+    layer = Image.new("RGBA", (W, H), CREAM + (0,))
+    d = ImageDraw.Draw(layer)
+    step, r = 132, 52
+    for row in range(-1, H // step + 2):
+        for col in range(-1, W // step + 2):
+            cx, cy = col * step + (step / 2 if row % 2 else 0), row * step
+            pts = _star_points(cx, cy, r)
+            d.line(pts + [pts[0]], fill=CREAM + (255,), width=2)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    dist = np.sqrt(((xx - W / 2) / W) ** 2 + ((yy - H * 0.52) / H * 1.1) ** 2)
+    fade = np.clip((dist - 0.34) / 0.22, 0, 1) * 0.07
+    alpha = (np.asarray(layer.split()[3], np.float32) * fade).astype(np.uint8)
+    layer.putalpha(Image.fromarray(alpha))
+    return layer
+
+
+def motif(card: Card) -> Image.Image:
+    """The still part of the scene: its emblem, plus the Quran scene's star tiling and the Gita
+    scene's rings around the lotus. Drawn at full resolution so it stays crisp."""
+    layer = Image.new("RGBA", (W, H), CREAM + (0,))
+    if card.scene == "night":
+        layer = Image.alpha_composite(layer, _lattice())
+    if card.scene == "dusk":
+        d = ImageDraw.Draw(layer)
+        for rr, alpha in ((EMBLEM_R * 1.3, 60), (EMBLEM_R * 1.45, 30)):
+            d.ellipse([W / 2 - rr, EMBLEM_Y - rr, W / 2 + rr, EMBLEM_Y + rr], outline=CREAM + (alpha,), width=2)
+    emblem = _emblem(card.scene, EMBLEM_R)
+    if emblem is not None:
+        holder = Image.new("RGBA", (emblem.width + 2 * PAD, emblem.height + 2 * PAD), CREAM + (0,))
+        holder.alpha_composite(emblem, (PAD, PAD))
+        holder = _with_shadow(holder, blur=10, strength=0.45)
+        layer.alpha_composite(holder, (W // 2 - holder.width // 2, EMBLEM_Y - holder.height // 2))
+    return layer
+
+
+def make_overlay(card: Card, path: Path) -> None:
+    """Everything on top of the scene, fully revealed, as one transparent PNG."""
+    img = motif(card)
+    pieces, _ = compose(card)
+    for p in pieces:
+        img.alpha_composite(p.image, (p.x, p.y))
     img.save(path)
 
 
-# ---------------------------------------------------------------- background
+# ---------------------------------------------------------------- scenes (moving backgrounds)
 
 def _hex(c: str) -> np.ndarray:
     c = c.lstrip("#")
@@ -205,6 +441,9 @@ def _hex(c: str) -> np.ndarray:
 
 
 class Background:
+    """The plain "glow" scene: a shifting two-color gradient with soft glowing blobs that drift
+    and breathe."""
+
     def __init__(self, seed: int, palettes: list | None = None):
         rng = np.random.default_rng(seed)
         palettes = palettes or PALETTES
@@ -223,7 +462,6 @@ class Background:
                 ph=rng.uniform(0, 2 * math.pi),
                 r=rng.uniform(0.18, 0.32), k=rng.uniform(0.18, 0.32),
             ))
-        # vignette, gentle
         d = np.sqrt((self.xx - 0.5) ** 2 + ((self.yy - 0.5) * 1.2) ** 2)
         self.vignette = (1.0 - 0.55 * np.clip(d / 0.75, 0, 1) ** 2)[..., None]
 
@@ -240,6 +478,111 @@ class Background:
             img = 1 - (1 - img) * (1 - glow * b["color"])   # screen blend
         img = img * self.vignette * 0.86   # keep it dim enough for white text
         return (np.clip(img, 0, 1) * 255).astype(np.uint8)
+
+
+class Scene:
+    """A tradition's moving background, drawn small (it's all soft light) and scaled up by ffmpeg.
+
+    sunrise: warm dawn sky, the sun's glow at the emblem, slow rays turning, dust drifting in them.
+    night:   a dark sky with moon-glow at the emblem and stars twinkling at their own pace.
+    dusk:    plum to saffron, warm lamp-light from below and embers rising and fading.
+    """
+
+    def __init__(self, card: Card):
+        self.kind = card.scene
+        palettes = card.palettes or SCENE_PALETTES[card.scene]
+        top, bottom, glows = palettes[card.seed % len(palettes)]
+        self.light, self.particle, self.highlight = (_hex(glows[i % len(glows)]) for i in range(3))
+        self.w, self.h = W // BG_SCALE, H // BG_SCALE
+        rng = np.random.default_rng(card.seed)
+        yy, xx = np.mgrid[0:self.h, 0:self.w].astype(np.float32)
+        self.xx, self.yy = xx / self.w, yy / self.h
+        aspect = H / W
+        ex, ey = 0.5, EMBLEM_Y / H                         # the emblem, where the main light sits
+        self.dx, self.dy = self.xx - ex, (self.yy - ey) * aspect
+        self.dist = np.sqrt(self.dx ** 2 + self.dy ** 2)
+        g = np.clip(self.yy, 0, 1)[..., None]
+        sky = _hex(top) * (1 - g) + _hex(bottom) * g
+
+        def glow(cx, cy, r, k, color):
+            d2 = (self.xx - cx) ** 2 + ((self.yy - cy) * aspect) ** 2
+            return np.exp(-d2 / (2 * r * r))[..., None] * k * color
+
+        if self.kind == "sunrise":
+            lights = [glow(ex, ey, 0.24, 0.42, self.light), glow(0.5, 1.08, 0.5, 0.45, self.light)]
+            self.theta = np.arctan2(self.dy, self.dx)
+            self.count, self.drift = 30, (0.004, 0.012)
+        elif self.kind == "night":
+            lights = [glow(ex, ey, 0.22, 0.42, self.light), glow(0.5, 1.1, 0.5, 0.12, self.highlight)]
+            self.count, self.drift = 120, (0.0, 0.0)
+        else:  # dusk
+            lights = [glow(0.5, 1.08, 0.48, 0.62, self.light), glow(ex, ey, 0.16, 0.30, self.highlight)]
+            self.count, self.drift = 46, (0.025, 0.06)
+        for light in lights:
+            sky = 1 - (1 - sky) * (1 - light)                # screen blend
+        vignette = 1.0 - 0.5 * np.clip(np.sqrt((self.xx - 0.5) ** 2 + ((self.yy - 0.5) * 1.2) ** 2) / 0.78, 0, 1) ** 2
+        self.base = sky * vignette[..., None] * 0.9
+
+        # particles: dust motes, stars or embers
+        n = self.count
+        self.px, self.py = rng.uniform(0.04, 0.96, n), rng.uniform(0.02, 0.98, n)
+        if self.kind == "night":                              # keep the moon's patch of sky clear
+            keep = np.sqrt((self.px - ex) ** 2 + ((self.py - ey) * aspect) ** 2) > 0.16
+            self.px, self.py = self.px[keep], self.py[keep]
+        n = len(self.px)
+        self.size = rng.uniform(0.6, 1.3, n) if self.kind != "night" else rng.uniform(0.45, 0.9, n)
+        self.bright = rng.uniform(0.35, 1.0, n)
+        self.rate = rng.uniform(0.15, 0.55, n)                # twinkle / flicker speed (Hz)
+        self.phase = rng.uniform(0, 2 * math.pi, n)
+        self.speed = rng.uniform(*self.drift, n) if self.drift[1] else np.zeros(n)
+        if self.kind == "night":
+            in_text = (np.abs(self.px - 0.5) < 0.42) & (self.py > HEADER_Y / H - 0.02) & (self.py < BOX_BOTTOM / H)
+            self.bright = np.where(in_text, self.bright * 0.25, self.bright)
+        self.sway = rng.uniform(0.004, 0.02, n)
+
+    def _splat(self, img: np.ndarray, x: float, y: float, sigma: float, amount: np.ndarray) -> None:
+        """Add a small soft dot (gaussian) at (x, y) in frame fractions."""
+        px, py = x * self.w, y * self.h
+        r = int(math.ceil(sigma * 3))
+        x0, x1 = max(0, int(px) - r), min(self.w, int(px) + r + 2)
+        y0, y1 = max(0, int(py) - r), min(self.h, int(py) + r + 2)
+        if x0 >= x1 or y0 >= y1:
+            return
+        gx = np.exp(-((np.arange(x0, x1) - px) ** 2) / (2 * sigma ** 2))
+        gy = np.exp(-((np.arange(y0, y1) - py) ** 2) / (2 * sigma ** 2))
+        patch = (gy[:, None] * gx[None, :])[..., None] * amount
+        img[y0:y1, x0:x1] = 1 - (1 - img[y0:y1, x0:x1]) * (1 - patch)
+
+    def frame(self, t: float) -> np.ndarray:
+        img = self.base.copy()
+        if self.kind == "sunrise":
+            rays = (0.5 + 0.5 * np.cos(12 * (self.theta - 0.025 * t))) ** 4
+            reach = np.clip(1 - self.dist / 1.15, 0, 1) ** 1.6 * np.clip((self.dist - 0.06) / 0.12, 0, 1)
+            light = (rays * reach * (0.065 + 0.012 * math.sin(t * 0.4)))[..., None] * self.light
+            img = 1 - (1 - img) * (1 - light)
+        for i in range(len(self.px)):
+            if self.kind == "night":
+                x, y = self.px[i], self.py[i]
+                level = self.bright[i] * (0.55 + 0.45 * math.sin(2 * math.pi * self.rate[i] * t + self.phase[i]))
+                color = self.particle
+            elif self.kind == "sunrise":                      # dust drifting slowly up and across
+                y = (self.py[i] - self.speed[i] * t) % 1.0
+                x = self.px[i] + self.sway[i] * math.sin(0.3 * t + self.phase[i])
+                level = 0.32 * self.bright[i] * (0.6 + 0.4 * math.sin(2 * math.pi * self.rate[i] * t + self.phase[i]))
+                color = self.particle
+            else:                                             # embers rising, flickering, fading out high up
+                y = 1.05 - ((1.05 - self.py[i]) + self.speed[i] * t) % 1.1
+                x = self.px[i] + self.sway[i] * math.sin(2 * math.pi * 0.12 * t + self.phase[i])
+                fade = np.clip((y - 0.3) / 0.35, 0, 1) * (0.4 if BOX_TOP / H < y < BOX_BOTTOM / H and abs(x - 0.5) < 0.42 else 1.0)
+                level = 0.75 * self.bright[i] * fade * (0.6 + 0.4 * math.sin(2 * math.pi * 1.5 * self.rate[i] * t + self.phase[i]))
+                color = self.particle
+            if level > 0.01:
+                self._splat(img, x, y, self.size[i], level * color)
+        return (np.clip(img, 0, 1) * 255).astype(np.uint8)
+
+
+def scene_for(card: Card):
+    return Scene(card) if card.scene in SCENE_PALETTES else Background(card.seed, card.palettes)
 
 
 # ---------------------------------------------------------------- audio
@@ -267,7 +610,7 @@ def _chord(degree: int, key_root: int) -> list[int]:
 
 
 def _ambient(seed: int, dur: float, rng: np.random.Generator) -> np.ndarray:
-    """Soft pad chords and sparse bell notes, dry (reverb is added in _finish)."""
+    """Soft pad chords and sparse bell notes, dry (reverb is added in make_audio)."""
     key = list(NOTE.values())[seed % len(NOTE)]
     prog = PROGRESSIONS[seed % len(PROGRESSIONS)]
     n = int(dur * SR)
@@ -318,6 +661,54 @@ def _ambient(seed: int, dur: float, rng: np.random.Generator) -> np.ndarray:
     return out
 
 
+def _drone(seed: int, dur: float, rng: np.random.Generator) -> np.ndarray:
+    """A tanpura, the drone under Indian classical music: four strings (Pa, Sa, Sa, low Sa) plucked
+    in a slow cycle, each a bright, buzzing tone whose brightness sweeps down as it rings (the
+    jawari bridge), so the sound never stops. Now and then, softly, a temple bell."""
+    n = int(dur * SR)
+    out = np.zeros((n, 2))
+    sa = 130.81 * 2 ** ((seed % 3) / 12)              # C, C# or D below middle C: usual tanpura pitches
+    strings = [(sa * 3 / 4, 0.38), (sa, 0.56), (sa, 0.62), (sa / 2, 0.47)]   # (frequency, pan)
+    ring = 6.5
+    m = int(ring * SR)
+    tt = np.arange(m) / SR
+    centre = 3 + 7 * np.exp(-tt / 1.8)                # the formant the jawari sweeps down the harmonics
+    notes = []
+    for f, pan in strings:
+        tone = np.zeros(m)
+        for h in range(1, 25):
+            if h * f > 8000:
+                break
+            amp = h ** -0.8 * (0.35 + np.exp(-((h - centre) / 2.5) ** 2))
+            tone += amp * np.sin(2 * math.pi * h * f * (1 + 0.0004 * h) * tt + rng.uniform(0, 2 * math.pi))
+        env = np.exp(-tt / 3.2) * np.clip(tt / 0.008, 0, 1)
+        notes.append((tone * env, pan))
+    t0, k = 0.15, 0
+    while t0 < dur:
+        note, pan = notes[k % 4]
+        s0 = int(t0 * SR)
+        s1 = min(n, s0 + m)
+        gain = rng.uniform(0.85, 1.0)
+        out[s0:s1, 0] += note[:s1 - s0] * (1 - pan) * gain
+        out[s0:s1, 1] += note[:s1 - s0] * pan * gain
+        t0 += 1.25 * (1.6 if k % 4 == 3 else 1.0)     # a breath after the low string, as players do
+        k += 1
+    bell_at = rng.uniform(3.0, 6.0)
+    t = np.arange(n) / SR
+    while bell_at < dur - 2.0:
+        fb = sa * 4 * rng.choice([1.0, 1.5])     # a small brass bell, an octave or two above
+        s0 = int(bell_at * SR)
+        bt = t[s0:] - bell_at
+        bell = sum(a * np.exp(-bt / dk) * np.sin(2 * math.pi * fb * ratio * bt)
+                   for ratio, a, dk in ((1.0, 1.0, 4.0), (2.0, 0.5, 2.5), (2.76, 0.35, 1.8), (5.4, 0.15, 0.9)))
+        bell *= np.clip(bt / 0.004, 0, 1) * 0.22     # an accent, well under the drone
+        pan = rng.uniform(0.3, 0.7)
+        out[s0:, 0] += bell * (1 - pan)
+        out[s0:, 1] += bell * pan
+        bell_at += rng.uniform(8.0, 13.0)
+    return out
+
+
 def _nature(dur: float, rng: np.random.Generator) -> np.ndarray:
     """Soft wind with a faint rain hiss: no pitch, rhythm, or instruments, for traditions where
     many people avoid music. Shaped noise: a deep, slowly gusting band plus a quiet high band."""
@@ -363,6 +754,9 @@ def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> Non
         if style == "ambient":
             mix = _reverb(_ambient(seed, dur, rng), rng)
             target_db = -18
+        elif style == "drone":
+            mix = _reverb(_drone(seed, dur, rng), rng)
+            target_db = -20
         else:
             mix = _nature(dur, rng)
             target_db = -26          # background texture, well under speech level
@@ -389,26 +783,14 @@ def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> Non
         w.writeframes(pcm.tobytes())
 
 
-# ---------------------------------------------------------------- video
-
-def _seconds(card: Card) -> float:
-    # Reading time follows the translation; an original text above it adds a little.
-    extra = 0.15 * len(card.original.split()) if card.original else 0.0
-    return min(30.0, duration_for(card.text) + extra)
-
-
-def cover_time(card: Card) -> float:
-    """The moment used as the Reel's cover in the profile grid, and for preview stills: midway,
-    with the text fully in. (Instagram's default is the first frame, which is a fade from black.)"""
-    return _seconds(card) / 2
-
+# ---------------------------------------------------------------- output
 
 def render_still(card: Card, out_jpg: Path) -> Path:
-    """Fast preview: one background frame plus the text overlay, no video or audio."""
+    """Fast preview: the scene at the cover moment with everything revealed, no video or audio."""
     out_jpg.parent.mkdir(parents=True, exist_ok=True)
     overlay = out_jpg.with_suffix(".overlay.png")
     make_overlay(card, overlay)
-    bg = Background(card.seed, card.palettes)
+    bg = scene_for(card)
     frame = Image.fromarray(bg.frame(cover_time(card))).resize((W, H), Image.BICUBIC).convert("RGBA")
     Image.alpha_composite(frame, Image.open(overlay)).convert("RGB").save(out_jpg, quality=88)
     overlay.unlink()
@@ -416,42 +798,45 @@ def render_still(card: Card, out_jpg: Path) -> Path:
 
 
 def render_reel(card: Card, out_path: Path) -> Path:
-    """Full Reel: 1080x1920 H.264 + AAC, 12 to 30 seconds depending on text length."""
-    dur = _seconds(card)
+    """Full Reel: 1080x1920 H.264 + AAC, 12 to 30 seconds depending on text length.
+
+    The scene's frames are piped to ffmpeg; the emblem layer and each line of text come in as
+    still images that ffmpeg fades in on cue and lays over the scene.
+    """
+    pieces, tl = compose(card)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    overlay = out_path.with_suffix(".overlay.png")
-    audio = out_path.with_suffix(".wav")
-
-    make_overlay(card, overlay)
-    make_audio(card.seed, dur, audio, card.audio)
-    bg = Background(card.seed, card.palettes)
-
-    fade_out_start = max(0.0, dur - 1.4)
-    filt = (
-        f"[0:v]scale={W}:{H}:flags=bicubic[bg];"
-        f"[1:v]format=rgba,fade=t=in:st=0.7:d=1.6:alpha=1,"
-        f"fade=t=out:st={fade_out_start:.2f}:d=1.2:alpha=1[txt];"
-        f"[bg][txt]overlay=0:0:shortest=1,noise=alls=3:allf=t,"
-        f"fade=t=in:st=0:d=0.8,format=yuv420p[v]"
-    )
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{bg.w}x{bg.h}", "-r", str(FPS), "-i", "-",
-        "-loop", "1", "-framerate", str(FPS), "-i", str(overlay),
-        "-i", str(audio),
-        "-filter_complex", filt, "-map", "[v]", "-map", "2:a",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-profile:v", "high",
-        "-r", str(FPS), "-c:a", "aac", "-b:a", "128k", "-ar", str(SR),   # 128k: Meta's Reels audio spec
-        "-movflags", "+faststart", "-t", f"{dur:.2f}", "-shortest", str(out_path),
-    ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    try:
-        for i in range(int(math.ceil(dur * FPS))):
-            proc.stdin.write(bg.frame(i / FPS).tobytes())
-    finally:
-        proc.stdin.close()
-    if proc.wait() != 0:
-        raise RuntimeError("ffmpeg failed")
-    overlay.unlink()
-    audio.unlink()
+    bg = scene_for(card)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        motif(card).save(tmp / "motif.png")
+        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", str(tmp / "motif.png")]
+        filt = [f"[0:v]scale={W}:{H}:flags=bicubic[sky]", "[1:v]format=rgba[motif]",
+                "[sky][motif]overlay=0:0:shortest=1[b0]"]
+        for i, p in enumerate(pieces):
+            path = tmp / f"piece{i:02d}.png"
+            p.image.save(path)
+            inputs += ["-loop", "1", "-framerate", str(FPS), "-i", str(path)]
+            filt.append(f"[{i + 2}:v]format=rgba,fade=t=in:st={p.t_in:.2f}:d={FADE_IN}:alpha=1,"
+                        f"fade=t=out:st={tl.fade_out:.2f}:d={FADE_OUT}:alpha=1[p{i}]")
+            filt.append(f"[b{i}][p{i}]overlay={p.x}:{p.y}:shortest=1[b{i + 1}]")
+        filt.append(f"[b{len(pieces)}]noise=alls=3:allf=t,format=yuv420p[v]")
+        audio = tmp / "audio.wav"
+        make_audio(card.seed, tl.duration, audio, card.audio)
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{bg.w}x{bg.h}", "-r", str(FPS), "-i", "-",
+            *inputs, "-i", str(audio),
+            "-filter_complex", ";".join(filt), "-map", "[v]", "-map", f"{len(pieces) + 2}:a",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-profile:v", "high",
+            "-r", str(FPS), "-c:a", "aac", "-b:a", "128k", "-ar", str(SR),   # 128k: Meta's Reels audio spec
+            "-movflags", "+faststart", "-t", f"{tl.duration:.2f}", "-shortest", str(out_path),
+        ]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        try:
+            for i in range(int(math.ceil(tl.duration * FPS))):
+                proc.stdin.write(bg.frame(i / FPS).tobytes())
+        finally:
+            proc.stdin.close()
+        if proc.wait() != 0:
+            raise RuntimeError("ffmpeg failed")
     return out_path

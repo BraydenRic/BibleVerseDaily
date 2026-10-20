@@ -12,6 +12,10 @@
       "attribution": "Scripture from the Berean Standard Bible (public domain)."
     }
   },
+  "style": {
+    "scene": "sunrise",
+    "audio": "ambient"
+  },
   "ref_display": {
     "Psalms": "Psalm",
     "I Samuel": "1 Samuel",

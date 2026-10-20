@@ -29,14 +29,8 @@
     }
   },
   "style": {
-    "audio": "ambient",
-    "palettes": [
-      ["#1c1424", "#a35d3a", ["#f6c27a", "#e8956a", "#8e6bb0"]],
-      ["#0e1733", "#2f5d7a", ["#7fd1c7", "#5b8fd6", "#e6d38f"]],
-      ["#24152a", "#8a4f6e", ["#f3b5c9", "#e9c48a", "#a68fd6"]],
-      ["#0f2220", "#3b6e60", ["#d9e8b0", "#8fc7b5", "#f0d99a"]],
-      ["#151a2e", "#6b5a8f", ["#f2c58f", "#c9a7e6", "#8fb5e8"]]
-    ],
+    "scene": "dusk",
+    "audio": "drone",
     "original": {
       "text": "sanskrit",
       "font": "NotoSerifDevanagari-Variable.ttf",

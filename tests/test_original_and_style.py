@@ -7,7 +7,7 @@ import pytest
 
 from dailyverse import validate
 from dailyverse.caption import build_caption, original_text
-from dailyverse.library import load_account, load_text, upcoming
+from dailyverse.library import ROOT as REAL_ROOT, load_account, load_text, upcoming
 from dailyverse.render import AUDIO_STYLES, card_for, make_audio
 
 from .conftest import write
@@ -135,11 +135,42 @@ def test_the_verse_is_revealed_in_order_and_complete_at_the_cover(with_original,
     pieces, tl = compose(card)
     entries = [p.t_in for p in pieces]
     assert entries == sorted(entries)                             # header, original, English, emblem, reference
+    assert len(pieces) > len(card.text.split())                   # the verse arrives a word at a time
     assert all(p.t_in + FADE_IN <= tl.cover for p in pieces)       # the grid cover shows everything
-    assert MIN_SECONDS <= tl.duration <= MAX_SECONDS and tl.cover < tl.fade_out
+    assert MIN_SECONDS <= tl.duration <= MAX_SECONDS and tl.cover < tl.duration
     assert all(p.y + p.image.height <= BOX_BOTTOM + 60 for p in pieces)   # clear of Instagram's caption area
 
 
 def test_the_header_names_the_plan_and_day(with_original):
     card = card_for(first_slot())
     assert card.header == "Plan A · Day 1 of 3"
+
+
+@pytest.mark.parametrize("style", ["ambient", "drone", "nature"])
+def test_music_is_calm_whatever_the_volume(tmp_path, style):
+    """Loudness is set the way meters measure it (LUFS), well under music mastered for Instagram (~-14)."""
+    import numpy as np
+    from dailyverse.render import LOUDNESS, loudness
+    path = tmp_path / f"{style}.wav"
+    make_audio(11, 8.0, path, style)
+    with wave.open(str(path)) as w:
+        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).reshape(-1, 2) / 32768
+    assert abs(loudness(pcm) - LOUDNESS[style]) < 1.0
+    assert LOUDNESS[style] <= -24 and np.max(np.abs(pcm)) <= 0.71
+
+
+def test_arabic_words_appear_right_to_left():
+    """The first word of an Arabic line sits at its right end, and each next word to its left."""
+    import dailyverse.library as library
+    from dailyverse.render import timeline
+    if not (REAL_ROOT / "accounts" / "islam.json").exists():
+        return
+    card = card_for(upcoming(library.load_account("islam"), count=1)[0])
+    first_line_y = None
+    xs = []
+    for line in timeline(card).lines:
+        if line.shaping.get("direction") == "rtl":
+            first_line_y = first_line_y or line.y
+            if line.y == first_line_y:
+                xs.append(line.x)
+    assert len(xs) > 1 and xs == sorted(xs, reverse=True)

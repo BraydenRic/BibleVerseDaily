@@ -5,7 +5,7 @@ Everything here is generated from code, so there are no stock-footage or music l
 Each tradition picks a scene (`style.scene` in tradition.json) that matches its profile picture: an
 emblem near the top (a sun, a crescent moon, a lotus) and a slowly moving background around it (light
 rays with drifting dust, twinkling stars, rising embers). Over it go a header naming the plan and day,
-the verse (the original language first, for traditions that show it) appearing a line at a time at
+the verse (the original language first, for traditions that show it) appearing a word at a time at
 reading pace, a small copy of the emblem, and the reference. Text stays in the band Instagram leaves
 clear: below the Reels header, above the caption and buttons, and inside the 4:5 feed crop and the
 3:4 profile-grid crop.
@@ -54,6 +54,9 @@ SCENE_PALETTES = {
 }
 SCENES = ("glow", *SCENE_PALETTES)
 AUDIO_STYLES = ("ambient", "drone", "nature", "silent")
+# Integrated loudness targets (LUFS). Music on Instagram is mastered around -14; broadcast TV is -23.
+# With no voice over it, background music this calm should sit well under both.
+LOUDNESS = {"ambient": -24.0, "drone": -24.0, "nature": -28.0}
 
 # Layout. Full-screen Reels cover about the top 220px and bottom 400px; the feed shows a 4:5 crop
 # (y 285 to 1635) and the profile grid a 3:4 crop (y 240 to 1680).
@@ -66,9 +69,10 @@ REF_H = 40
 
 # Timing (seconds)
 T_HEADER, T_FIRST = 0.3, 1.0
-FADE_IN, FADE_OUT = 0.9, 1.0
-ORIGINAL_STEP = 0.55                  # the original appears at a steady pace: it's seen more than read
-READ_PACE, MIN_STEP = 0.27, 0.75      # per English word, before the next line comes in
+FADE_IN, RISE = 0.55, 10              # each word fades in while rising this many pixels into place
+ORIGINAL_STEP = 0.14                  # the original appears word by word at an easy, steady pace
+READ_PACE = 0.27                      # per English word: unhurried reading speed
+PAUSE_COMMA, PAUSE_STOP = 0.12, 0.3   # an extra breath after , ; : and after . ! ?
 MIN_SECONDS, MAX_SECONDS = 12.0, 30.0
 
 
@@ -204,27 +208,45 @@ def _header(card: Card, draw: ImageDraw.ImageDraw) -> tuple[ImageFont.FreeTypeFo
 
 @dataclass
 class Line:
-    """One piece of text on screen and when it appears."""
+    """One piece of text on screen (a word, or the whole header or reference) and when it appears."""
     text: str
     font: ImageFont.FreeTypeFont
     y: int
     t_in: float
     fill: tuple
     shaping: dict
+    x: float | None = None     # where the text starts; None centres it
 
 
 @dataclass
 class Timeline:
-    lines: list[Line]          # header, original, English and reference, in order of appearance
+    lines: list[Line]          # header, then the verse word by word, then the reference
     ornament_y: int            # centre of the small emblem between the verse and the reference
     ornament_t: float
     duration: float
     cover: float               # a moment with everything on screen (grid cover, preview still)
-    fade_out: float            # when the text starts to fade (the scene stays, so the loop is smooth)
+
+
+def _word_starts(draw, words: list[str], font, origin_x: float, advance: float, shaping: dict) -> list[float]:
+    """Where each word of a centred line starts, in reading order. Arabic runs right to left, so
+    its first word sits at the right end of the line."""
+    if shaping.get("direction") == "rtl":
+        return [origin_x + advance - draw.textlength(" ".join(words[:i + 1]), font=font, **shaping)
+                for i in range(len(words))]
+    return [origin_x + (draw.textlength(" ".join(words[:i]) + " ", font=font, **shaping) if i else 0)
+            for i in range(len(words))]
+
+
+def _english_step(word: str) -> float:
+    """Time until the next word: reading pace, plus a breath at punctuation (closing quotes aside)."""
+    end = word.rstrip("\u201d\u2019\"')]")
+    return READ_PACE + (PAUSE_STOP if end.endswith((".", "!", "?")) else
+                        PAUSE_COMMA if end.endswith((",", ";", ":", "\u2014")) else 0.0)
 
 
 def timeline(card: Card) -> Timeline:
-    """Where every line goes and when it appears, and how long the Reel runs."""
+    """Where every word goes and when it appears, and how long the Reel runs. Words stay once
+    they're in; the Reel ends on the whole verse."""
     draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     L = layout(card)
     lines: list[Line] = []
@@ -235,25 +257,32 @@ def timeline(card: Card) -> Timeline:
     total = L["block_h"] + DIVIDER_H + REF_H
     y = BOX_TOP + max(0, (BOX_BOTTOM - BOX_TOP - total) // 2)
     t = T_FIRST
+
+    def words_of(text: str, font, fill: tuple, shaping: dict, step) -> None:
+        nonlocal t
+        words = text.split(" ")
+        advance = draw.textlength(text, font=font, **shaping)
+        for word, x in zip(words, _word_starts(draw, words, font, (W - advance) / 2, advance, shaping)):
+            lines.append(Line(word, font, y, t, fill, shaping, x))
+            t += step(word)
+
     for text in L.get("o_lines", []):
-        lines.append(Line(text, L["o_font"], y, t, CREAM + (255,), L["shaping"]))
+        words_of(text, L["o_font"], CREAM + (255,), L["shaping"], lambda w: ORIGINAL_STEP)
         y += L["o_line_h"]
-        t += ORIGINAL_STEP
     if card.original:
         y += L["o_gap"]
-        t += 0.35
+        t += 0.4
     for text in L["lines"]:
         # the translation steps back slightly when it sits under the original
-        lines.append(Line(text, L["font"], y, t, CREAM + (232 if card.original else 255,), {}))
+        words_of(text, L["font"], CREAM + (232 if card.original else 255,), {}, _english_step)
         y += L["line_h"]
-        t += max(MIN_STEP, READ_PACE * len(text.split()))
-    ornament_y, ornament_t = y + DIVIDER_H // 2 - 8, t
-    lines.append(Line(_spaced(card.ref), _font("Poppins-Medium.ttf", 34), y + DIVIDER_H - 8, t + 0.3,
+    ornament_y, ornament_t = y + DIVIDER_H // 2 - 8, t + 0.1
+    lines.append(Line(_spaced(card.ref), _font("Poppins-Medium.ttf", 34), y + DIVIDER_H - 8, t + 0.45,
                       CREAM + (220,), {}))
 
     # Long passages reveal faster so the whole thing fits in 30 seconds with time to finish reading.
     t_ref = lines[-1].t_in
-    latest_ref = MAX_SECONDS - FADE_OUT - 4.0 - FADE_IN
+    latest_ref = MAX_SECONDS - 4.0 - FADE_IN
     if t_ref > latest_ref:
         k = (latest_ref - T_FIRST) / (t_ref - T_FIRST)
         for ln in lines:
@@ -263,10 +292,8 @@ def timeline(card: Card) -> Timeline:
         t_ref = lines[-1].t_in
     revealed = t_ref + FADE_IN
     hold = min(7.0, max(4.0, 3.0 + 0.06 * len(card.text.split())))
-    duration = min(MAX_SECONDS, max(MIN_SECONDS, revealed + hold + FADE_OUT))
-    fade_out = duration - FADE_OUT - 0.1
-    cover = min(revealed + 0.6, fade_out - 0.5)
-    return Timeline(lines, ornament_y, ornament_t, duration, cover, fade_out)
+    duration = min(MAX_SECONDS, max(MIN_SECONDS, revealed + hold))
+    return Timeline(lines, ornament_y, ornament_t, duration, min(revealed + 0.5, duration - 0.5))
 
 
 def _seconds(card: Card) -> float:
@@ -306,7 +333,7 @@ def _text_piece(line: Line) -> Piece:
     left, top, right, bottom = probe.textbbox((0, 0), line.text, font=line.font, **line.shaping)
     img = Image.new("RGBA", (int(right - left) + 2 * PAD, int(bottom - top) + 2 * PAD), CREAM + (0,))
     ImageDraw.Draw(img).text((PAD - left, PAD - top), line.text, font=line.font, fill=line.fill, **line.shaping)
-    origin_x = (W - advance) / 2            # centred by advance width, like any centred line of type
+    origin_x = line.x if line.x is not None else (W - advance) / 2     # centred lines: by advance width
     return Piece(_with_shadow(img), round(origin_x + left - PAD), round(line.y + top - PAD), line.t_in)
 
 
@@ -743,6 +770,26 @@ def _reverb(out: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     return out * 0.65 + wet * 0.6
 
 
+def _k_weighting(n: int) -> np.ndarray:
+    """|H| of the ITU-R BS.1770 K-weighting filter (the ear-like curve loudness meters use) at each
+    rfft bin of an n-sample signal. The standard gives the coefficients for 48 kHz."""
+    z1 = np.exp(-2j * np.pi * np.fft.rfftfreq(n, 1 / SR) / 48000)          # z^-1 at each frequency
+
+    def biquad(b, a):
+        return np.abs((b[0] + b[1] * z1 + b[2] * z1 ** 2) / (a[0] + a[1] * z1 + a[2] * z1 ** 2))
+    shelf = biquad((1.53512485958697, -2.69169618940638, 1.19839281085285), (1.0, -1.69065929318241, 0.73248077421585))
+    high_pass = biquad((1.0, -2.0, 1.0), (1.0, -1.99004745483398, 0.99007225036621))
+    return shelf * high_pass
+
+
+def loudness(mix: np.ndarray) -> float:
+    """Integrated loudness in LUFS (BS.1770 K-weighting, summed over both channels). It skips the
+    standard's gating, which only matters for audio with long silences."""
+    n, k = len(mix), _k_weighting(len(mix))
+    power = sum(np.mean(np.fft.irfft(np.fft.rfft(mix[:, ch]) * k, n) ** 2) for ch in range(2))
+    return -0.691 + 10 * math.log10(power + 1e-20)
+
+
 def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> None:
     if style not in AUDIO_STYLES:
         raise ValueError(f"audio style must be one of {AUDIO_STYLES}, not {style!r}")
@@ -753,13 +800,10 @@ def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> Non
     else:
         if style == "ambient":
             mix = _reverb(_ambient(seed, dur, rng), rng)
-            target_db = -18
         elif style == "drone":
             mix = _reverb(_drone(seed, dur, rng), rng)
-            target_db = -20
         else:
             mix = _nature(dur, rng)
-            target_db = -26          # background texture, well under speech level
         # Gentle low-pass in the frequency domain to keep it warm
         freqs = np.fft.rfftfreq(n, 1 / SR)
         gain = 1 / np.sqrt(1 + (freqs / 3500) ** 4)
@@ -769,11 +813,10 @@ def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> Non
         fade_in, fade_out = min(int(1.5 * SR), n // 2), min(int(2.5 * SR), n // 2)
         mix[:fade_in] *= np.linspace(0, 1, fade_in)[:, None]
         mix[-fade_out:] *= np.linspace(1, 0, fade_out)[:, None]
-        rms = np.sqrt(np.mean(mix ** 2)) + 1e-9
-        mix *= 10 ** (target_db / 20) / rms
+        mix *= 10 ** ((LOUDNESS[style] - loudness(mix)) / 20)
         peak = np.max(np.abs(mix))
-        if peak > 0.89:
-            mix *= 0.89 / peak
+        if peak > 0.7:                     # about -3 dBFS of headroom
+            mix *= 0.7 / peak
 
     pcm = (mix * 32767).astype(np.int16)
     with wave.open(str(path), "wb") as w:
@@ -797,44 +840,53 @@ def render_still(card: Card, out_jpg: Path) -> Path:
     return out_jpg
 
 
+def _ease(a: float) -> float:
+    a = min(1.0, max(0.0, a))
+    return a * a * (3 - 2 * a)            # smoothstep: starts and lands softly
+
+
 def render_reel(card: Card, out_path: Path) -> Path:
     """Full Reel: 1080x1920 H.264 + AAC, 12 to 30 seconds depending on text length.
 
-    The scene's frames are piped to ffmpeg; the emblem layer and each line of text come in as
-    still images that ffmpeg fades in on cue and lays over the scene.
+    Each frame is built here: the scene, then everything already in place (the emblem and every
+    word that has landed), then the words still fading in, each rising a few pixels as it does.
+    ffmpeg adds a little film grain (it prevents banding in the gradients) and encodes.
     """
     pieces, tl = compose(card)
+    pieces.sort(key=lambda p: p.t_in)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     bg = scene_for(card)
+    landed = motif(card)                      # grows as words finish fading in
     with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        motif(card).save(tmp / "motif.png")
-        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", str(tmp / "motif.png")]
-        filt = [f"[0:v]scale={W}:{H}:flags=bicubic[sky]", "[1:v]format=rgba[motif]",
-                "[sky][motif]overlay=0:0:shortest=1[b0]"]
-        for i, p in enumerate(pieces):
-            path = tmp / f"piece{i:02d}.png"
-            p.image.save(path)
-            inputs += ["-loop", "1", "-framerate", str(FPS), "-i", str(path)]
-            filt.append(f"[{i + 2}:v]format=rgba,fade=t=in:st={p.t_in:.2f}:d={FADE_IN}:alpha=1,"
-                        f"fade=t=out:st={tl.fade_out:.2f}:d={FADE_OUT}:alpha=1[p{i}]")
-            filt.append(f"[b{i}][p{i}]overlay={p.x}:{p.y}:shortest=1[b{i + 1}]")
-        filt.append(f"[b{len(pieces)}]noise=alls=3:allf=t,format=yuv420p[v]")
-        audio = tmp / "audio.wav"
+        audio = Path(tmp) / "audio.wav"
         make_audio(card.seed, tl.duration, audio, card.audio)
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{bg.w}x{bg.h}", "-r", str(FPS), "-i", "-",
-            *inputs, "-i", str(audio),
-            "-filter_complex", ";".join(filt), "-map", "[v]", "-map", f"{len(pieces) + 2}:a",
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+            "-i", str(audio), "-map", "0:v", "-map", "1:a",
+            "-vf", "noise=alls=3:allf=t,format=yuv420p",
             "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-profile:v", "high",
             "-r", str(FPS), "-c:a", "aac", "-b:a", "128k", "-ar", str(SR),   # 128k: Meta's Reels audio spec
             "-movflags", "+faststart", "-t", f"{tl.duration:.2f}", "-shortest", str(out_path),
         ]
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        waiting, fading = list(pieces), []
         try:
             for i in range(int(math.ceil(tl.duration * FPS))):
-                proc.stdin.write(bg.frame(i / FPS).tobytes())
+                t = i / FPS
+                while waiting and waiting[0].t_in <= t:
+                    fading.append(waiting.pop(0))
+                for p in [p for p in fading if t >= p.t_in + FADE_IN]:
+                    landed.alpha_composite(p.image, (p.x, p.y))
+                fading = [p for p in fading if t < p.t_in + FADE_IN]
+                frame = Image.fromarray(bg.frame(t)).resize((W, H), Image.BICUBIC).convert("RGBA")
+                frame.alpha_composite(landed)
+                for p in fading:
+                    a = _ease((t - p.t_in) / FADE_IN)
+                    img = p.image.copy()
+                    img.putalpha(p.image.getchannel("A").point(lambda v, a=a: int(v * a)))
+                    frame.alpha_composite(img, (p.x, p.y + round((1 - a) * RISE)))
+                proc.stdin.write(frame.convert("RGB").tobytes())
         finally:
             proc.stdin.close()
         if proc.wait() != 0:

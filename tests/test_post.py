@@ -263,4 +263,4 @@ def test_the_grid_cover_is_a_frame_with_the_verse_on_it(world, fakes):
     card = render.card_for(slot)
     assert cli.main(["post", "--force"]) == 0
     assert ig().cover_ms == int(render.cover_time(card) * 1000)
-    assert 2300 < ig().cover_ms < (render._seconds(card) - 1.4) * 1000   # after the text fades in, before it fades out
+    assert 2300 < ig().cover_ms < render._seconds(card) * 1000   # once the verse is in, before the end

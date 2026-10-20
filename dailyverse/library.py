@@ -139,6 +139,8 @@ class Slot:
     total: int        # posts in the plan
     when: datetime    # scheduled local time
     seasonal: bool = False   # from a date-pinned plan (doesn't move the regular queue)
+    pauses_reading: bool = False    # first day of a date-pinned plan that interrupts a regular plan midway
+    resumes_reading: bool = False   # first regular day back after a date-pinned plan interrupted it
 
     @property
     def text_meta(self) -> dict:
@@ -208,6 +210,12 @@ def upcoming(account: dict, count: int | None = None, from_date: date | None = N
     def at(day_: date) -> datetime:
         return datetime(day_.year, day_.month, day_.day, hh, mm, tzinfo=tz)
 
+    def regular_midway(i: int, day_: int) -> bool:
+        """Is a regular plan partway through (not finished, not about to start)?"""
+        while i < len(queue) and day_ > len(plan_at(i)["posts"]):
+            i, day_ = i + 1, 1
+        return i < len(queue) and day_ > 1
+
     slots: list[Slot] = []
     plan_index, day = state["plan_index"], state["next_day"]
     while count is None or len(slots) < count:
@@ -215,7 +223,10 @@ def upcoming(account: dict, count: int | None = None, from_date: date | None = N
         if season:
             n = (d - season.start).days + 1
             posts = season.plan["posts"]
-            slots.append(Slot(account, tradition, season.plan, posts[n - 1], n, len(posts), at(d), seasonal=True))
+            # Where a holiday plan falls in the reading depends on the launch date, so the notes
+            # that say the reading pauses and picks up again come from the schedule, not the plans.
+            slots.append(Slot(account, tradition, season.plan, posts[n - 1], n, len(posts), at(d), seasonal=True,
+                              pauses_reading=n == 1 and regular_midway(plan_index, day)))
         else:
             # skip finished plans (also covers a plan that was shortened after it started)
             while plan_index < len(queue) and day > len(plan_at(plan_index)["posts"]):
@@ -227,7 +238,9 @@ def upcoming(account: dict, count: int | None = None, from_date: date | None = N
                 d = later[0]
                 continue
             plan = plan_at(plan_index)
-            slots.append(Slot(account, tradition, plan, plan["posts"][day - 1], day, len(plan["posts"]), at(d)))
+            back = day > 1 and any(s.covers(d - timedelta(days=1)) for s in pinned)
+            slots.append(Slot(account, tradition, plan, plan["posts"][day - 1], day, len(plan["posts"]), at(d),
+                              resumes_reading=back))
             day += 1
         d += timedelta(days=1)
     return slots

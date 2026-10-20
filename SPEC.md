@@ -162,7 +162,7 @@ Keys are `"<Work> <Chapter>:<Verse>"`. For texts organized only by chapter (the 
 }
 ```
 
-`plans` is a queue. `seasonal` (optional) pins plans to the calendar: day N of a seasonal plan always posts on `start + N - 1`, so Advent ends on Christmas Day however the rest of the schedule has drifted. The regular queue pauses while a seasonal plan runs and resumes after. Seasonal plans are tied to a year; add next year's dates when the time comes. `secrets` names the GitHub secrets that hold this account's credentials, so each account has its own.
+`plans` is a queue. `seasonal` (optional) pins plans to the calendar: day N of a seasonal plan always posts on `start + N - 1`, so Advent ends on Christmas Day however the rest of the schedule has drifted. The regular queue pauses while a seasonal plan runs and resumes after. When that interrupts a regular plan partway through, the seasonal plan's first caption says the regular reading pauses, and the first regular caption after it says it's back (worked out from the schedule, so they're right whatever the launch date). Seasonal plans are tied to a year; add next year's dates when the time comes. `secrets` names the GitHub secrets that hold this account's credentials, so each account has its own.
 
 `draft` (optional): marks an account whose tradition is still being set up (what `new-tradition` creates). `validate` only warns about drafts; every other account, live or not, is checked strictly.
 

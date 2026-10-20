@@ -44,6 +44,16 @@ def hashtags(slot: Slot) -> list[str]:
     return list(dict.fromkeys(tags))[:MAX_HASHTAGS]
 
 
+def break_note(slot: Slot) -> str | None:
+    """A line marking where a date-pinned plan interrupts the regular reading, and where it picks up again."""
+    if slot.pauses_reading:
+        span = "today" if slot.total == 1 else f"these {slot.total} days"
+        return f"Our regular reading pauses for {span} and picks up where it left off afterwards."
+    if slot.resumes_reading:
+        return f"Back to our regular reading: {slot.plan['title']}."
+    return None
+
+
 def build_caption(slot: Slot) -> str:
     """Original-language text first (for traditions that show it), then the translation and its
     reference, the context, the day, the credit, and the hashtags last, out of the way."""
@@ -54,6 +64,7 @@ def build_caption(slot: Slot) -> str:
     parts = [
         original,
         f"{text}\n{ref_line(slot)}",
+        break_note(slot),
         slot.entry["caption"],
         day_line(slot),
         slot.text_meta["attribution"],

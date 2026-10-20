@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from dailyverse import validate
 from dailyverse.caption import MAX_CAPTION, MAX_HASHTAGS, build_caption, overlay_text
@@ -26,6 +26,15 @@ def test_caption_and_overlay_use_the_familiar_citation(world):
     slot = upcoming(load_account("acct"), count=1, from_date=D0)[0]
     assert "\nPsalm 23:1 (TT)" in build_caption(slot)
     assert overlay_text(slot) == ("Psalm verse 1.", "Psalm 23:1", "Day 1 of 3")
+
+
+def test_captions_mark_a_holiday_break_in_the_reading(world):
+    world.account(seasonal=[{"plan": "s-1", "start": (D0 + timedelta(1)).isoformat()}])
+    slots = upcoming(load_account("acct"), from_date=D0)
+    paused, resumed = build_caption(slots[1]).split("\n\n"), build_caption(slots[4]).split("\n\n")
+    assert paused[1] == "Our regular reading pauses for these 3 days and picks up where it left off afterwards."
+    assert resumed[1] == "Back to our regular reading: Plan A."
+    assert len(build_caption(slots[0]).split("\n\n")) == len(paused) - 1      # no note on ordinary days
 
 
 def test_hashtags_are_deduplicated_and_capped(world):

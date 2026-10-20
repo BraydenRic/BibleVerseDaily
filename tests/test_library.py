@@ -103,6 +103,24 @@ def test_seasonal_plan_interrupts_the_queue_and_it_resumes_after(world):
         ("02-b", 1, D0 + timedelta(6)), ("02-b", 2, D0 + timedelta(7)),
     ]
     assert [s.seasonal for s in slots[:2]] == [False, True]
+    # 01-a was midway, so the holiday's first day says the reading pauses and day 2 of 01-a says it's back
+    assert [i for i, s in enumerate(slots) if s.pauses_reading] == [1]
+    assert [i for i, s in enumerate(slots) if s.resumes_reading] == [4]
+
+
+def test_a_season_between_plans_needs_no_pause_or_resume_note(world):
+    world.account(seasonal=[{"plan": "s-1", "start": (D0 + timedelta(3)).isoformat()}])   # right after 01-a ends
+    slots = upcoming(load_account("acct"), from_date=D0)
+    assert days(slots)[3:6] == [("s-1", 1, D0 + timedelta(3)), ("s-1", 2, D0 + timedelta(4)), ("s-1", 3, D0 + timedelta(5))]
+    assert not any(s.pauses_reading or s.resumes_reading for s in slots)
+
+
+def test_the_notes_follow_the_launch_date_not_the_plan(world):
+    # Launching a day later moves the break one post earlier in 01-a; the notes move with it.
+    world.account(seasonal=[{"plan": "s-1", "start": (D0 + timedelta(2)).isoformat()}])
+    slots = upcoming(load_account("acct"), from_date=D0 + timedelta(1))
+    assert days(slots)[:2] == [("01-a", 1, D0 + timedelta(1)), ("s-1", 1, D0 + timedelta(2))]
+    assert slots[1].pauses_reading and slots[4].resumes_reading and (slots[4].plan["id"], slots[4].day) == ("01-a", 2)
 
 
 def test_seasonal_days_are_placed_by_date_even_when_joined_midway(world):

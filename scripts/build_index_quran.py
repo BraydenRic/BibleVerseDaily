@@ -4,7 +4,9 @@
   published 1930 (US public domain since 2026) and Pickthall died in 1936 (life+70/80 elsewhere).
   Taken from Project Gutenberg #16955, which interleaves three translations; only the
   Pickthall ("P:") paragraphs are used. (Tanzil's own Pickthall file is licensed for
-  non-commercial use only and has substitution errors, so it isn't used.)
+  non-commercial use only and has substitution errors, so it isn't used.) The e-text isn't
+  word for word the 1930 printing; every scheduled verse was checked against archive.org scans
+  of the 1930 Knopf and Allen & Unwin printings, and CORRECTIONS restores the printed wording.
 - Arabic: Tanzil Project Uthmani text, verbatim. Tanzil's terms allow use with attribution and a
   link to tanzil.net but forbid changing the text, so it is stored exactly as published, including
   the opening "Bismillah" that Tanzil prefixes to verse 1 of most surahs; posts that use a verse 1
@@ -23,6 +25,33 @@ import requests
 OUT = Path(__file__).resolve().parent.parent / "traditions" / "islam" / "texts"
 GUTENBERG = "https://www.gutenberg.org/cache/epub/16955/pg16955.txt"
 TANZIL = "https://tanzil.net/pub/download/index.php?quranType=uthmani&outType=txt-2&agree=true"
+
+# Where the e-text differs from Pickthall's 1930 printing, the printing wins: it's the edition
+# credited, and the one that's certainly public domain. (e-text, 1930) pairs; typos first.
+CORRECTIONS = {
+    "Al-Mutaffifin 83:3": [("or weight for them", "or weigh for them")],
+    "Al-Asr 103:2": [("man is a state of loss", "man is in a state of loss")],
+    "Al-Hajj 22:37": [("their food reach not", "their blood reach not")],
+    "Yusuf 12:1": [("These are verse of", "These are verses of")],
+    "Al-Fatiha 1:4": [("Master of the Day", "Owner of the Day")],
+    "Al-Baqarah 2:163": [("Your Allah is One Allah;", "Your God is One God;")],
+    "Al-Baqarah 2:255": [("There is no deity save Him", "There is no God save Him")],
+    "An-Nisa 4:149": [("Allah is ever Forgiving", "Allah is Forgiving")],
+    "Al-Isra 17:85": [("They are asking thee", "They will ask thee")],
+    "Al-Kahf 18:7": [("all that is on the earth", "all that is in the earth")],
+    "Az-Zumar 39:54": [("Turn unto your Lord repentant", "Turn unto Him repentant")],
+    "Al-Jinn 72:1": [("Lo! we have heard a marvellous", "Lo! it is a marvellous")],
+    "Al-Qiyamah 75:4": [("Yea, verily. We are Able", "Yea, verily. Yea, We are Able")],
+    "Al-Qadr 97:1": [("Night of Predestination", "Night of Power")],
+}
+
+
+def apply_corrections(verses: dict[str, str]) -> dict[str, str]:
+    for key, pairs in CORRECTIONS.items():
+        for old, new in pairs:
+            assert old in verses[key], f"{key}: {old!r} isn't in the source any more; recheck CORRECTIONS"
+            verses[key] = verses[key].replace(old, new, 1)
+    return verses
 
 SURAHS = [
     "Al-Fatiha", "Al-Baqarah", "Al-Imran", "An-Nisa", "Al-Ma'idah", "Al-An'am", "Al-A'raf", "Al-Anfal",
@@ -99,6 +128,7 @@ def main() -> None:
             works.append({"name": SURAHS[s - 1], "number": s, "chapters": []})
         works[-1]["chapters"] = [v]
 
+    apply_corrections(en_verses)
     OUT.mkdir(parents=True, exist_ok=True)
     common = {"works": works}
     (OUT / "pickthall.json").write_text(json.dumps(

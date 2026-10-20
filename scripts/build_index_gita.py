@@ -14,6 +14,10 @@
 Both sources number chapter 13 with Arjuna's opening question as verse 1 (701 verses in all);
 many Indian editions start chapter 13 one verse later.
 
+The Wikisource transcription of the Devanagari has some errors (hyphens left from printed line
+breaks, slipped spaces, misspellings). Those are fixed to the standard (Gita Press) reading: the
+hyphens by rule, the rest in CORRECTIONS.
+
 Keys look like "Bhagavad Gita 2:47".
 
     python scripts/build_index_gita.py
@@ -28,6 +32,35 @@ import requests
 
 OUT = Path(__file__).resolve().parent.parent / "traditions" / "hinduism" / "texts"
 VERSES = "https://raw.githubusercontent.com/gita/gita/main/data/verse.json"
+
+# Transcription errors in the Devanagari, as (transcribed, standard reading) pairs, checked
+# against the Gita Press text.
+CORRECTIONS = {
+    "2:3": [("क्लैव्यं", "क्लैब्यं")],
+    "2:6": [("जिजीविषाम:", "जिजीविषामः")],                    # a Latin colon for the visarga
+    "2:67": [("मनोऽनु विधीयते", "मनोऽनुविधीयते")],
+    "4:14": [("बद्ध्यते", "बध्यते")],
+    "4:22": [("निबद्ध्यते", "निबध्यते")],
+    "7:11": [("बलं बलवतामस्मि", "बलं बलवतां चाहं")],
+    "11:28": [("नरलोकवीराः विशन्ति", "नरलोकवीरा विशन्ति")],
+    "12:14": [("यो मे भक्तः", "यो मद्भक्तः")],
+    "13:18": [("धिष्ठितम्", "विष्ठितम्")],
+    "15:5": [("जितसङ्गदोषाः अध्यात्मनित्या", "जितसङ्गदोषा अध्यात्मनित्या")],
+    "15:20": [("एतद्‌बुध्वा", "एतद्बुद्ध्वा")],
+    "17:11": [("विधिदृष्टोय इज्यते", "विधिदृष्टो य इज्यते")],
+}
+
+
+def correct_sanskrit(verses: dict[str, str]) -> dict[str, str]:
+    for key, text in verses.items():
+        # a hyphen and space left where the printed line broke inside a word
+        verses[key] = re.sub(r"(?<=[ऀ-ॿ])- (?=[ऀ-ॿ])", "", text)
+    for ref, pairs in CORRECTIONS.items():
+        key = f"{WORK} {ref}"
+        for old, new in pairs:
+            assert old in verses[key], f"{key}: {old!r} isn't in the source any more; recheck CORRECTIONS"
+            verses[key] = verses[key].replace(old, new, 1)
+    return verses
 WIKISOURCE = ("https://en.wikisource.org/w/api.php?action=parse&format=json&formatversion=2&prop=text"
               "&page=Bhagavad-Gita_(Besant_4th)/Discourse_{n}")
 WORK = "Bhagavad Gita"
@@ -157,6 +190,7 @@ def main() -> None:
             else:
                 missing.append(f"{c}:{v}")
     assert not any("Upanishads of the Bhagavad-Gita" in e for e in english.values()), "a colophon leaked into a verse"
+    correct_sanskrit(sanskrit)
     iast, regenerated = matching_iast(iast, sanskrit)
     print(f"IAST regenerated from the Devanagari for {len(regenerated)} verses: {', '.join(regenerated)}")
     works = [{"name": WORK, "chapters": [counts[c] for c in range(1, 19)]}]

@@ -77,7 +77,7 @@ ORIGINAL_STEP = 0.14                  # the original appears word by word at an 
 READ_PACE = 0.27                      # per English word: unhurried reading speed
 # Natural pauses, as a reader would take them: a beat at , ; : and dashes, a longer one at the end
 # of a sentence, and a beat at the Sanskrit danda (।, the end of a half-verse).
-PAUSE_COMMA, PAUSE_STOP, PAUSE_DANDA = 0.7, 1.2, 0.6
+PAUSE_COMMA, PAUSE_STOP, PAUSE_DANDA = 0.575, 1.025, 0.5
 MIN_SECONDS, MAX_SECONDS = 12.0, 30.0
 
 

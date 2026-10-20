@@ -77,6 +77,7 @@ def page(accounts: list[dict]) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>Upcoming posts</title>
 <style>
 :root {{ --bg:#f6f4f0; --card:#ffffff; --ink:#1d1b19; --muted:#6d6862; --line:#e6e1da; --accent:#5b6fa8; }}

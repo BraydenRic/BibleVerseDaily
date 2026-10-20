@@ -37,7 +37,7 @@
   "timezone": "Europe/London",
   "post_time": "12:00",
   "window_minutes_before": 30,
-  "window_minutes_after": 120,
+  "window_minutes_after": 719,
   "secrets": {
     "user_id": "IG_USER_ID_ISLAM",
     "access_token": "IG_ACCESS_TOKEN_ISLAM"

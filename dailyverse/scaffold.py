@@ -79,7 +79,7 @@ def create(tradition_id: str, account_id: str | None = None, root: Path = ROOT) 
             "timezone": "America/Los_Angeles",
             "post_time": "12:00",
             "window_minutes_before": 30,
-            "window_minutes_after": 120,
+            "window_minutes_after": 719,
             "secrets": {"user_id": f"IG_USER_ID_{secret_stem}", "access_token": f"IG_ACCESS_TOKEN_{secret_stem}"},
         },
         state_file: {"plan_index": 0, "next_day": 1, "last_posted_date": None, "history": []},

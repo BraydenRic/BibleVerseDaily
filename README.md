@@ -48,7 +48,7 @@ A tradition is content; an account posts one tradition's plans; state tracks the
 
 ## Day to day
 
-Nothing. The workflow runs hourly and each live account posts once inside its window around `post_time`. Instagram tokens refresh weekly. If a run fails, GitHub emails you; no email means it's running. The preview page (GitHub Pages) refreshes after every post.
+Nothing. The workflow checks every 20 minutes and each live account posts once a day, from around `post_time` (noon in its own time zone); if GitHub runs the schedule late, the post goes out later that same day. Instagram tokens refresh weekly. If a run fails, GitHub emails you; no email means it's running. The preview page (GitHub Pages) refreshes after every post.
 
 Things that do need you, eventually:
 

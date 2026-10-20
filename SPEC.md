@@ -155,7 +155,7 @@ Keys are `"<Work> <Chapter>:<Verse>"`. For texts organized only by chapter (the 
   "timezone": "America/Los_Angeles",
   "post_time": "12:00",
   "window_minutes_before": 30,
-  "window_minutes_after": 120,
+  "window_minutes_after": 719,
   "secrets": {
     "user_id": "IG_USER_ID_CHRISTIANITY",
     "access_token": "IG_ACCESS_TOKEN_CHRISTIANITY"
@@ -167,7 +167,7 @@ Keys are `"<Work> <Chapter>:<Verse>"`. For texts organized only by chapter (the 
 
 `draft` (optional): marks an account whose tradition is still being set up (what `new-tradition` creates). `validate` only warns about drafts; every other account, live or not, is checked strictly.
 
-`start_date` (optional): nothing posts before this date, even with `--force`, so code can be pushed early or a launch delayed without the hourly run posting day 1 too soon (an early day 1 would shift every later plan by a day).
+`start_date` (optional): nothing posts before this date, even with `--force`, so code can be pushed early or a launch delayed without a scheduled run posting day 1 too soon (an early day 1 would shift every later plan by a day).
 
 `instagram_handle` (optional) labels the account on the preview page. The live account leaves it out so the public repo isn't found by searching the handle.
 
@@ -251,13 +251,13 @@ python -m dailyverse new-tradition ID [--account ID]
 
 It ends by printing how far ahead each account is scheduled. Problems on disabled accounts are only warnings.
 
-`due` prints `due=true/false` (and writes it as a GitHub step output) so the hourly workflow can stop early. `due`, `validate` and `new-tradition` need only the standard library.
+`due` prints `due=true/false` (and writes it as a GitHub step output) so the scheduled workflow can stop early. `due`, `validate` and `new-tradition` need only the standard library.
 
 ## 5. GitHub Actions
 
 ### `daily-post.yml`
 
-- Cron `50 * * * *`: hourly. Each account posts only inside its own window, in its own time zone (daylight saving included), and once a day. So one schedule serves any number of accounts in any time zones, and with a 30/120-minute window around noon there are three runs inside it every day: two automatic retries.
+- Cron `7,27,47 * * * *`: every 20 minutes. GitHub delays and drops scheduled runs when it's busy (on launch day it ran an hourly schedule only every ~5 hours and every account missed its 2.5-hour window), so the schedule asks often and each account's window runs from 30 minutes before `post_time` to the end of its local day (`window_minutes_after: 719`): a late run still posts that day. Each account posts once a day, in its own time zone (daylight saving included), so one schedule serves any number of accounts, and the runs inside a window double as retries. A test checks every account gets at least 20 scheduled chances a day, all year.
 - Checks out the tip of `main`, not the commit that started the run, so a run that waited behind another one (or a re-run of an old run) sees the progress the latest post saved.
 - First step: `python -m dailyverse due` on bare Python. Most runs stop there, in seconds. Only when something is due does it install ffmpeg and the pinned requirements and run `python -m dailyverse post`. Each account's secrets are passed to that step by name (`IG_USER_ID_X: ${{ secrets.IG_USER_ID_X }}`), never the whole secrets map: that keeps access minimal, and GitHub blocks workflows that hand over every secret (`toJSON(secrets)`) as possibly malicious. A test checks that every account's secrets are passed in both daily-post.yml and refresh-token.yml.
 - Commits `state/` when it changed (pulling first in case of a concurrent push), then starts the Preview workflow. GitHub disables scheduled workflows in a public repo after 60 days without a commit; the daily commit prevents that, and if nothing has been committed for 30 days the step writes `state/heartbeat.txt` as a keep-alive commit.
@@ -319,7 +319,7 @@ Things to respect when expanding:
 
 Done:
 - **Verify:** `validate` and `preview` run, videos render.
-- **Tests:** `tests/` covers references, quote repair, scheduling (already posted today, rollover, seasonal plans), `in_window` across daylight saving, the hourly cron, captions, validation, scaffolding, and `post` end to end with fakes.
+- **Tests:** `tests/` covers references, quote repair, scheduling (already posted today, rollover, seasonal plans), `in_window` across daylight saving, the schedule's chances per account, captions, validation, scaffolding, and `post` end to end with fakes.
 - **Scaffold command:** `new-tradition`.
 - **Hosting fallback:** a GitHub Release asset.
 - **A year of plans:** 365 days queued for each of Christianity, Islam and Hinduism.

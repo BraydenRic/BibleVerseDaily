@@ -197,15 +197,33 @@ def test_in_window_holds_across_daylight_saving(when, inside):
     assert in_window(ACCT, when) is inside
 
 
-def test_hourly_cron_hits_the_window_in_both_seasons():
-    """The workflow runs at :50 every hour (UTC); every day of the year at least two runs
-    must land inside the noon-Pacific window, so a failed post always gets a retry."""
+def test_the_schedule_gives_every_account_many_chances_a_day():
+    """GitHub runs scheduled workflows late or not at all when it's busy, so every account needs
+    plenty of scheduled runs inside its window, all year, in its own time zone."""
+    import re as _re
+    from dailyverse.library import ROOT, list_accounts
+    cron = _re.search(r'cron: "([^"]+)"', (ROOT / ".github/workflows/daily-post.yml").read_text()).group(1)
+    minutes, hours = cron.split()[:2]
+    assert hours == "*"
     utc = ZoneInfo("UTC")
-    d = date(2026, 10, 20)
-    for _ in range(366):
-        runs = [datetime(d.year, d.month, d.day, h, 50, tzinfo=utc).astimezone(LA) for h in range(24)]
-        assert sum(in_window(ACCT, r) for r in runs if r.date() == d) >= 2, d
-        d += timedelta(1)
+    for acct in list_accounts(enabled_only=False):
+        tz = ZoneInfo(acct["timezone"])
+        d = date(2026, 10, 20)
+        for _ in range(366):
+            runs = [datetime(d.year, d.month, d.day, h, int(m), tzinfo=utc) + timedelta(days=k)
+                    for k in (-1, 0, 1) for h in range(24) for m in minutes.split(",")]
+            local = [r.astimezone(tz) for r in runs]
+            assert sum(in_window(acct, r) for r in local if r.date() == d) >= 20, (acct["id"], d)
+            d += timedelta(1)
+
+
+def test_a_late_run_still_posts_the_same_day():
+    """Each live account's window runs to the end of its local day, so a run hours late still posts."""
+    from dailyverse.library import list_accounts
+    for acct in list_accounts(enabled_only=False):
+        tz = ZoneInfo(acct["timezone"])
+        assert in_window(acct, datetime(2026, 11, 3, 23, 50, tzinfo=tz)), acct["id"]
+        assert not in_window(acct, datetime(2026, 11, 3, 9, 0, tzinfo=tz)), acct["id"]
 
 
 def test_start_date_holds_back_the_first_post(world):

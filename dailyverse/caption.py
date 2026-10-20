@@ -1,7 +1,7 @@
 """Instagram caption for a post, and the text that goes on screen."""
 from __future__ import annotations
 
-from .library import Slot, load_text, lookup, post_text
+from .library import Slot, load_text, lookup, parse_ref, post_text
 
 MAX_CAPTION = 2200
 MAX_HASHTAGS = 5   # Instagram's in-app limit since Dec 2025; the API docs still say 30, so stay at 5
@@ -34,12 +34,23 @@ def day_line(slot: Slot) -> str:
     return f"Day {slot.day} of {slot.total} · {slot.plan['title']}"
 
 
+def hashtags(slot: Slot) -> list[str]:
+    """The tradition's base tags, the tag for the book or surah the verse is from (`work_hashtags`,
+    so a post is never tagged with a surah it doesn't quote), then the plan's theme tag."""
+    work = parse_ref(slot.entry["ref"])[0]
+    sources = [slot.tradition.get("hashtags", ""), slot.tradition.get("work_hashtags", {}).get(work, ""),
+               slot.plan.get("hashtags", "")]
+    tags = " ".join(filter(None, sources)).split()
+    return list(dict.fromkeys(tags))[:MAX_HASHTAGS]
+
+
 def build_caption(slot: Slot) -> str:
+    """Original-language text first (for traditions that show it), then the translation and its
+    reference, the context, the day, the credit, and the hashtags last, out of the way."""
     text = post_text(slot.entry, load_text(slot.tradition["id"], slot.plan["text"]))
     cfg = slot.tradition.get("style", {}).get("original") or {}
     original = original_text(slot, for_caption=True) if cfg.get("in_caption", True) else None
-    tags = " ".join(filter(None, [slot.tradition.get("hashtags", ""), slot.plan.get("hashtags", "")])).split()
-    tags = list(dict.fromkeys(tags))[:MAX_HASHTAGS]
+    tags = hashtags(slot)
     parts = [
         original,
         f"{text}\n{ref_line(slot)}",

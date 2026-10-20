@@ -10,8 +10,8 @@ import re
 from datetime import timedelta
 
 from .caption import MAX_CAPTION, MAX_HASHTAGS, build_caption
-from .library import (list_accounts, load_plan, load_state, load_text, load_tradition, lookup, post_text, seasons,
-                      upcoming, verse_keys)
+from .library import (list_accounts, load_plan, load_state, load_text, load_tradition, lookup, parse_ref, post_text,
+                      seasons, upcoming, verse_keys)
 
 MAX_SCREEN_WORDS = 60   # beyond this the overlay hits its smallest font size and text can overflow
 MAX_WORDS_WITH_ORIGINAL = 45        # translation + original share the screen, so each gets less
@@ -149,6 +149,7 @@ def check_account(acct: dict) -> tuple[list[str], list[str]]:
         if b.start <= a.end:
             problems.append(f"{aid}: seasonal plans {a.plan['id']} and {b.plan['id']} overlap")
 
+    work_of_tag = {tag: work for work, tag in tradition.get("work_hashtags", {}).items()}
     slots = upcoming(acct)
     for slot in slots:
         caption = build_caption(slot)
@@ -158,6 +159,12 @@ def check_account(acct: dict) -> tuple[list[str], list[str]]:
         tags = [w for w in caption.split() if w.startswith("#")]
         if len(tags) > MAX_HASHTAGS:
             problems.append(f"{where}: {len(tags)} hashtags (max {MAX_HASHTAGS})")
+        # A tag naming a book or surah goes only on verses from it (a plan tag can't name one surah
+        # when the plan reads through several).
+        work = parse_ref(slot.entry["ref"])[0]
+        for tag in tags:
+            if work_of_tag.get(tag, work) != work:
+                problems.append(f"{where}: {tag} is the tag for {work_of_tag[tag]}, but {slot.entry['ref']} is from {work}")
     problems += check_repeats(aid, slots, load_state(aid).get("history", []))
     for a, b in zip(slots, slots[1:]):
         if (b.when.date() - a.when.date()).days > 1:

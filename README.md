@@ -2,11 +2,11 @@
 
 Posts one scripture Reel a day to Instagram at noon: a calm moving background, the verse, and a short caption explaining the context. Verses follow reading plans in order, with date-pinned plans for major holy days. Each tradition gets its own account and a full year of content.
 
-| Account | Tradition | On screen | Audio | Noon in | Status |
+| Account | Tradition | On screen and in caption | Audio | Noon in | Status |
 |---|---|---|---|---|---|
 | `christianity` | Bible (Berean Standard Bible) | English | ambient music | Los Angeles | ready, **not live** |
-| `islam` | Quran (Arabic + Pickthall's English, "translation of the meaning") | Arabic over English | none | London | ready, **not live** |
-| `hinduism` | Bhagavad Gita (Sanskrit + Besant's English) | Devanagari over English; romanized line in caption | ambient music | Kolkata | ready, **not live** |
+| `islam` | Quran (Arabic + Pickthall's English, "translation of the meaning") | Arabic, then English | none | London | ready, **not live** |
+| `hinduism` | Bhagavad Gita (Sanskrit + Besant's English) | Devanagari, then English | ambient music | Kolkata | ready, **not live** |
 
 Each has 365 days queued. Advent ends on Christmas, John ends on Easter, Ramadan reads through the Quran in 30 days, and the Gita ends a reading on Gita Jayanti. Full details and the design: **[SPEC.md](SPEC.md)**. Licenses: **[CREDITS.md](CREDITS.md)**.
 

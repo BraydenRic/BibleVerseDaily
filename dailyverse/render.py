@@ -57,7 +57,7 @@ SCENES = ("glow", *SCENE_PALETTES)
 AUDIO_STYLES = ("ambient", "drone", "nature", "silent")
 # Integrated loudness targets (LUFS). Music on Instagram is mastered around -14; broadcast TV is -23.
 # With no voice over it, background music this calm should sit well under both.
-LOUDNESS = {"ambient": -24.0, "drone": -24.0, "nature": -28.0}
+LOUDNESS = {"ambient": -24.0, "drone": -26.0, "nature": -28.0}
 
 # Layout. Full-screen Reels cover about the top 220px and bottom 400px; the feed shows a 4:5 crop
 # (y 285 to 1635) and the profile grid a 3:4 crop (y 240 to 1680).
@@ -70,12 +70,14 @@ REF_H = 40
 
 # Timing (seconds)
 T_HEADER, T_FIRST = 0.3, 1.0
-FADE_IN, RISE = 0.55, 10              # each word fades in while rising this many pixels into place
+FADE_IN, RISE, BLUR_IN = 0.9, 14, 4.0  # each word fades in over this long, rising this many pixels into
+                                       # place and coming into focus from this blur; fades overlap so
+                                       # three or four words are always in motion
 ORIGINAL_STEP = 0.14                  # the original appears word by word at an easy, steady pace
 READ_PACE = 0.27                      # per English word: unhurried reading speed
 # Natural pauses, as a reader would take them: a beat at , ; : and dashes, a longer one at the end
 # of a sentence, and a beat at the Sanskrit danda (।, the end of a half-verse).
-PAUSE_COMMA, PAUSE_STOP, PAUSE_DANDA = 0.45, 0.85, 0.4
+PAUSE_COMMA, PAUSE_STOP, PAUSE_DANDA = 0.7, 1.2, 0.6
 MIN_SECONDS, MAX_SECONDS = 12.0, 30.0
 
 
@@ -723,16 +725,16 @@ def _drone(seed: int, dur: float, rng: np.random.Generator) -> np.ndarray:
     ring = 6.5
     m = int(ring * SR)
     tt = np.arange(m) / SR
-    centre = 3 + 7 * np.exp(-tt / 1.8)                # the formant the jawari sweeps down the harmonics
+    centre = 2.5 + 4 * np.exp(-tt / 1.5)              # the jawari's bright band, kept low and gentle
     notes = []
     for f, pan in strings:
         tone = np.zeros(m)
         for h in range(1, 25):
-            if h * f > 8000:
+            if h * f > 4000:
                 break
-            amp = h ** -0.8 * (0.35 + np.exp(-((h - centre) / 2.5) ** 2))
+            amp = h ** -1.15 * (0.25 + 0.6 * np.exp(-((h - centre) / 2.0) ** 2))
             tone += amp * np.sin(2 * math.pi * h * f * (1 + 0.0004 * h) * tt + rng.uniform(0, 2 * math.pi))
-        env = np.exp(-tt / 3.2) * np.clip(tt / 0.008, 0, 1)
+        env = np.exp(-tt / 4.0) * np.clip(tt / 0.025, 0, 1)      # a soft, fingertip pluck
         notes.append((tone * env, pan))
     t0, k = 0.15, 0
     while t0 < dur:
@@ -742,21 +744,25 @@ def _drone(seed: int, dur: float, rng: np.random.Generator) -> np.ndarray:
         gain = rng.uniform(0.85, 1.0)
         out[s0:s1, 0] += note[:s1 - s0] * (1 - pan) * gain
         out[s0:s1, 1] += note[:s1 - s0] * pan * gain
-        t0 += 1.25 * (1.6 if k % 4 == 3 else 1.0)     # a breath after the low string, as players do
+        t0 += 1.6 * (1.5 if k % 4 == 3 else 1.0)      # unhurried, with a breath after the low string
         k += 1
-    bell_at = rng.uniform(3.0, 6.0)
     t = np.arange(n) / SR
+    for f, level in ((sa, 0.05), (sa / 2, 0.06)):     # a soft, steady hum under the plucks
+        hum = level * np.sin(2 * math.pi * f * t) * (0.85 + 0.15 * np.sin(2 * math.pi * 0.07 * t))
+        out[:, 0] += hum
+        out[:, 1] += hum
+    bell_at = rng.uniform(8.0, 12.0)
     while bell_at < dur - 2.0:
-        fb = sa * 4 * rng.choice([1.0, 1.5])     # a small brass bell, an octave or two above
+        fb = sa * 3                               # a low, warm bell, rarely
         s0 = int(bell_at * SR)
         bt = t[s0:] - bell_at
         bell = sum(a * np.exp(-bt / dk) * np.sin(2 * math.pi * fb * ratio * bt)
                    for ratio, a, dk in ((1.0, 1.0, 4.0), (2.0, 0.5, 2.5), (2.76, 0.35, 1.8), (5.4, 0.15, 0.9)))
-        bell *= np.clip(bt / 0.004, 0, 1) * 0.22     # an accent, well under the drone
+        bell *= np.clip(bt / 0.004, 0, 1) * 0.12     # an accent, well under the drone
         pan = rng.uniform(0.3, 0.7)
         out[s0:, 0] += bell * (1 - pan)
         out[s0:, 1] += bell * pan
-        bell_at += rng.uniform(8.0, 13.0)
+        bell_at += rng.uniform(18.0, 26.0)
     return out
 
 
@@ -830,7 +836,7 @@ def make_audio(seed: int, dur: float, path: Path, style: str = "ambient") -> Non
             mix = _nature(dur, rng)
         # Gentle low-pass in the frequency domain to keep it warm
         freqs = np.fft.rfftfreq(n, 1 / SR)
-        gain = 1 / np.sqrt(1 + (freqs / 3500) ** 4)
+        gain = 1 / np.sqrt(1 + (freqs / (2400 if style == "drone" else 3500)) ** 4)
         for ch in range(2):
             mix[:, ch] = np.fft.irfft(np.fft.rfft(mix[:, ch]) * gain, n)
         # Fades and loudness (fades shrink to fit very short clips)
@@ -867,6 +873,30 @@ def render_still(card: Card, out_jpg: Path) -> Path:
 def _ease(a: float) -> float:
     a = min(1.0, max(0.0, a))
     return a * a * (3 - 2 * a)            # smoothstep: starts and lands softly
+
+
+def _ease_out(a: float) -> float:
+    a = min(1.0, max(0.0, a))
+    return 1 - (1 - a) ** 3               # quick to start moving, settling gently into place
+
+
+def _arriving(p: Piece, t: float) -> tuple[Image.Image, int, int]:
+    """A piece partway through its entrance: partly faded in, a little low and a little soft. The
+    rise is drawn to a fraction of a pixel, so the motion is smooth rather than stepping."""
+    u = (t - p.t_in) / FADE_IN
+    alpha, settle = _ease(u), _ease_out(u)
+    img = p.image
+    blur = BLUR_IN * (1 - settle)
+    if blur > 0.25:                       # blurred premultiplied, so edges don't pick up stray color
+        img = img.convert("RGBa").filter(ImageFilter.GaussianBlur(blur)).convert("RGBA")
+    else:
+        img = img.copy()
+    img.putalpha(img.getchannel("A").point(lambda v: int(v * alpha)))
+    dy = RISE * (1 - settle)
+    whole = math.floor(dy)
+    if dy - whole > 0.01:
+        img = img.transform(img.size, Image.Transform.AFFINE, (1, 0, 0, 0, 1, -(dy - whole)), Image.BICUBIC)
+    return img, p.x, p.y + whole
 
 
 def render_reel(card: Card, out_path: Path) -> Path:
@@ -913,10 +943,8 @@ def render_reel(card: Card, out_path: Path) -> Path:
                 frame = Image.fromarray(bg.frame(t)).resize((W, H), Image.BICUBIC).convert("RGBA")
                 frame.alpha_composite(landed)
                 for p in fading:
-                    a = _ease((t - p.t_in) / FADE_IN)
-                    img = p.image.copy()
-                    img.putalpha(p.image.getchannel("A").point(lambda v, a=a: int(v * a)))
-                    frame.alpha_composite(img, (p.x, p.y + round((1 - a) * RISE)))
+                    img, x, y = _arriving(p, t)
+                    frame.alpha_composite(img, (x, y))
                 rgb = np.asarray(frame.convert("RGB"), dtype=np.int16) + dither
                 proc.stdin.write(np.clip(rgb, 0, 255).astype(np.uint8).tobytes())
         finally:

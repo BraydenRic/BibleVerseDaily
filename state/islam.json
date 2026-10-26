@@ -1,7 +1,7 @@
 {
-  "plan_index": 0,
-  "next_day": 7,
-  "last_posted_date": "2026-10-25",
+  "plan_index": 1,
+  "next_day": 1,
+  "last_posted_date": "2026-10-26",
   "history": [
     {
       "plan": "01-al-fatiha",
@@ -44,6 +44,13 @@
       "ref": "Al-Fatiha 1:6",
       "date": "2026-10-25",
       "media_id": "17887642605624472"
+    },
+    {
+      "plan": "01-al-fatiha",
+      "day": 7,
+      "ref": "Al-Fatiha 1:7",
+      "date": "2026-10-26",
+      "media_id": "18108995458964239"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "plan_index": 0,
   "next_day": 18,
-  "last_posted_date": "2026-11-05",
+  "last_posted_date": "2026-11-06",
   "history": [
     {
       "plan": "01-arjunas-crisis",
@@ -121,6 +121,13 @@
       "ref": "Bhagavad Gita 2:18",
       "date": "2026-11-05",
       "media_id": "17933432799164357"
+    },
+    {
+      "plan": "05-festival-of-lights",
+      "day": 1,
+      "ref": "Bhagavad Gita 15:12",
+      "date": "2026-11-06",
+      "media_id": "18106626839261628"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "plan_index": 1,
-  "next_day": 14,
-  "last_posted_date": "2026-11-08",
+  "next_day": 15,
+  "last_posted_date": "2026-11-09",
   "history": [
     {
       "plan": "01-al-fatiha",
@@ -142,6 +142,13 @@
       "ref": "Al-Baqarah 2:152",
       "date": "2026-11-08",
       "media_id": "17996469050844660"
+    },
+    {
+      "plan": "02-al-baqarah",
+      "day": 14,
+      "ref": "Al-Baqarah 2:153",
+      "date": "2026-11-09",
+      "media_id": "18119955877966466"
     }
   ]
 }

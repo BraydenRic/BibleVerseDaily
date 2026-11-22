@@ -1,7 +1,7 @@
 {
   "plan_index": 2,
-  "next_day": 1,
-  "last_posted_date": "2026-11-21",
+  "next_day": 2,
+  "last_posted_date": "2026-11-22",
   "history": [
     {
       "plan": "01-al-fatiha",
@@ -233,6 +233,13 @@
       "ref": "Al-Baqarah 2:286",
       "date": "2026-11-21",
       "media_id": "17922334419464377"
+    },
+    {
+      "plan": "03-al-imran-to-at-tawbah",
+      "day": 1,
+      "ref": "Al-Imran 3:8",
+      "date": "2026-11-22",
+      "media_id": "18198657457403557"
     }
   ]
 }

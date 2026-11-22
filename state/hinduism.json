@@ -1,7 +1,7 @@
 {
   "plan_index": 0,
-  "next_day": 28,
-  "last_posted_date": "2026-11-21",
+  "next_day": 29,
+  "last_posted_date": "2026-11-22",
   "history": [
     {
       "plan": "01-arjunas-crisis",
@@ -233,6 +233,13 @@
       "ref": "Bhagavad Gita 2:40",
       "date": "2026-11-21",
       "media_id": "18160188346523163"
+    },
+    {
+      "plan": "01-arjunas-crisis",
+      "day": 28,
+      "ref": "Bhagavad Gita 2:41",
+      "date": "2026-11-22",
+      "media_id": "18158814808518480"
     }
   ]
 }

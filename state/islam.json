@@ -1,7 +1,7 @@
 {
   "plan_index": 2,
-  "next_day": 2,
-  "last_posted_date": "2026-11-22",
+  "next_day": 3,
+  "last_posted_date": "2026-11-23",
   "history": [
     {
       "plan": "01-al-fatiha",
@@ -240,6 +240,13 @@
       "ref": "Al-Imran 3:8",
       "date": "2026-11-22",
       "media_id": "18198657457403557"
+    },
+    {
+      "plan": "03-al-imran-to-at-tawbah",
+      "day": 2,
+      "ref": "Al-Imran 3:38",
+      "date": "2026-11-23",
+      "media_id": "17964889602254768"
     }
   ]
 }

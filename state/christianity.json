@@ -1,7 +1,7 @@
 {
   "plan_index": 0,
-  "next_day": 35,
-  "last_posted_date": "2026-11-22",
+  "next_day": 36,
+  "last_posted_date": "2026-11-23",
   "history": [
     {
       "plan": "01-gospel-of-mark",
@@ -240,6 +240,13 @@
       "ref": "Mark 14:22",
       "date": "2026-11-22",
       "media_id": "18501458224107933"
+    },
+    {
+      "plan": "01-gospel-of-mark",
+      "day": 35,
+      "ref": "Mark 14:36",
+      "date": "2026-11-23",
+      "media_id": "18457327423135919"
     }
   ]
 }
